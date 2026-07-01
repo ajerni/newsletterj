@@ -1,0 +1,17 @@
+export const SUCHANFRAGEN: string[] = [
+    "Volksschule Kanton Zürich",
+    "Schulpflege Zürich",
+    "Schulleitung Kanton Zürich Konflikt",
+    "Bildungsdirektion Zürich",
+    "Schulpräsident Zürich Rücktritt Wahl",
+    "Volksschulamt Zürich",
+    "Schulhaus Zürich Bauprojekt",
+    "Primarschule Zürich",
+    "Sekundarschule Zürich",
+    "Sonderschule Zürich",
+    "Schulqualität Zürich Evaluation",
+    "Lehrpersonen Zürich Kündigung",
+    "Schule Zürich Gewalt Mobbing",
+    "Schule Zürich Digitalisierung",
+    "Schule Zürich Finanzen Budget",
+];

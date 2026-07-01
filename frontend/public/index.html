@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schulmonitor ZH</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1>Schulmonitor ZH</h1>
+            <nav>
+                <button class="nav-btn active" hx-get="/api/dashboard" hx-target="#content" onclick="setActive(this)">Übersicht</button>
+                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Artikel</button>
+                <button class="nav-btn" hx-get="/api/personen" hx-target="#content" onclick="setActive(this)">Personen</button>
+                <button class="nav-btn" hx-get="/api/ereignisse" hx-target="#content" onclick="setActive(this)">Ereignisse</button>
+                <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
+                <button class="nav-btn" hx-get="/api/laeufe" hx-target="#content" onclick="setActive(this)">Läufe</button>
+            </nav>
+        </div>
+    </header>
+    <main class="container">
+        <div id="content" hx-get="/api/dashboard" hx-trigger="load" hx-target="this">
+            <p class="muted">Laden...</p>
+        </div>
+    </main>
+    <script>
+        function setActive(el) {
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            el.classList.add('active');
+        }
+    </script>
+</body>
+</html>
