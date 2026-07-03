@@ -16,9 +16,19 @@ export interface FehlgeschlagenerArtikel {
     fehler?: string;
 }
 
+const STANDARD_EMPFAENGER = ["ajerni@gmail.com", "jeanine.erni@gmail.com"];
+
+function newsletterEmpfaenger(): string[] {
+    const ausEnv = process.env.NEWSLETTER_TO_EMAIL
+        ?.split(",")
+        .map((e) => e.trim())
+        .filter(Boolean);
+    return ausEnv?.length ? ausEnv : STANDARD_EMPFAENGER;
+}
+
 export async function newsletterSenden(html: string, betreff: string): Promise<string> {
     const von = process.env.NEWSLETTER_FROM_EMAIL || "Schulmonitor <onboarding@resend.dev>";
-    const an = process.env.NEWSLETTER_TO_EMAIL!;
+    const an = newsletterEmpfaenger();
 
     const antwort = await fetch("https://api.resend.com/emails", {
         method: "POST",
@@ -26,7 +36,7 @@ export async function newsletterSenden(html: string, betreff: string): Promise<s
             Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({ from: von, to: [an], subject: betreff, html }),
+        body: JSON.stringify({ from: von, to: an, subject: betreff, html }),
     });
 
     if (!antwort.ok) {
