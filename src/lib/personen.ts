@@ -9,6 +9,7 @@ import {
     gemeindeAliasHinzufuegen,
 } from "./db.js";
 import type { ArtikelExtraktion } from "./typen.js";
+import { llmJsonParsen } from "./json.js";
 
 interface ChatAntwort {
     choices: Array<{ message: { content: string } }>;
@@ -123,7 +124,7 @@ Nur eine Übereinstimmung melden wenn du dir sicher bist, dass es dieselbe Perso
     if (!antwort.ok) return null;
 
     const daten: ChatAntwort = await antwort.json();
-    const ergebnis = JSON.parse(daten.choices[0].message.content);
+    const ergebnis = llmJsonParsen<{ uebereinstimmung_id: number | null }>(daten.choices[0].message.content);
     return ergebnis.uebereinstimmung_id ?? null;
 }
 
@@ -159,6 +160,6 @@ Nur eine Übereinstimmung melden wenn es sich eindeutig um dieselbe Gemeinde han
     if (!antwort.ok) return null;
 
     const daten: ChatAntwort = await antwort.json();
-    const ergebnis = JSON.parse(daten.choices[0].message.content);
+    const ergebnis = llmJsonParsen<{ uebereinstimmung_id: number | null }>(daten.choices[0].message.content);
     return ergebnis.uebereinstimmung_id ?? null;
 }

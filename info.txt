@@ -1,0 +1,5 @@
+npx trigger.dev@latest login --profile wineagent --api-url https://triggerdev.wineagent.ch
+
+npx trigger.dev@latest deploy --profile wineagent --api-url https://triggerdev.wineagent.ch
+
+

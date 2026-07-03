@@ -9,6 +9,13 @@ interface ArtikelMitExtraktion {
     extraktion: ArtikelExtraktion;
 }
 
+export interface FehlgeschlagenerArtikel {
+    url: string;
+    titel?: string | null;
+    quellen_name?: string | null;
+    fehler?: string;
+}
+
 export async function newsletterSenden(html: string, betreff: string): Promise<string> {
     const von = process.env.NEWSLETTER_FROM_EMAIL || "Schulmonitor <onboarding@resend.dev>";
     const an = process.env.NEWSLETTER_TO_EMAIL!;
@@ -30,7 +37,10 @@ export async function newsletterSenden(html: string, betreff: string): Promise<s
     return daten.id;
 }
 
-export function newsletterHtmlErstellen(artikel: ArtikelMitExtraktion[]): string {
+export function newsletterHtmlErstellen(
+    artikel: ArtikelMitExtraktion[],
+    fehlgeschlagen: FehlgeschlagenerArtikel[] = []
+): string {
     const datum = new Date().toLocaleDateString("de-CH", {
         weekday: "long",
         year: "numeric",
@@ -68,13 +78,34 @@ export function newsletterHtmlErstellen(artikel: ArtikelMitExtraktion[]): string
         })
         .join("");
 
+    const fehlgeschlagenHtml =
+        fehlgeschlagen.length > 0
+            ? `
+                <div style="margin-bottom:28px;">
+                    <h2 style="color:#111827;font-size:18px;margin-bottom:6px;">Nicht automatisch verarbeitet (${fehlgeschlagen.length})</h2>
+                    <p style="color:#6b7280;font-size:13px;margin:0 0 10px;">Diese Beiträge konnten nicht analysiert werden und sind hier als Links aufgeführt:</p>
+                    <ul style="list-style:none;padding:0;">
+                        ${fehlgeschlagen
+                            .map(
+                                (f) => `
+                        <li style="margin-bottom:8px;">
+                            <a href="${htmlEscape(f.url)}" style="color:#1d4ed8;text-decoration:none;">${htmlEscape(f.titel || f.url)}</a>
+                            ${f.quellen_name ? `<span style="color:#6b7280;font-size:12px;margin-left:8px;">${htmlEscape(f.quellen_name)}</span>` : ""}
+                        </li>`
+                            )
+                            .join("")}
+                    </ul>
+                </div>`
+            : "";
+
     return `<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:720px;margin:0 auto;padding:24px;color:#111827;">
     <h1 style="font-size:22px;margin-bottom:4px;">Schulmonitor Kanton Zürich</h1>
-    <p style="color:#6b7280;margin-bottom:24px;">${datum} — ${artikel.length} neue Artikel</p>
+    <p style="color:#6b7280;margin-bottom:24px;">${datum} — ${artikel.length} neue Artikel${fehlgeschlagen.length > 0 ? `, ${fehlgeschlagen.length} nicht verarbeitet` : ""}</p>
     ${sektionen || '<p style="color:#6b7280;">Keine neuen Artikel in diesem Lauf gefunden.</p>'}
+    ${fehlgeschlagenHtml}
     <hr style="border:none;border-top:1px solid #e5e7eb;margin-top:32px;">
     <p style="color:#9ca3af;font-size:11px;">Automatisiert generiert durch newsletterj Schulmonitor</p>
 </body>

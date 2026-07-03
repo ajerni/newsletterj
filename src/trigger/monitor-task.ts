@@ -4,11 +4,12 @@ import { artikelExtrahieren } from "../lib/extraktion.js";
 import { personenAufloesen, gemeindeIdAufloesen } from "../lib/personen.js";
 import { artikelSpeichern, organisationFindenOderErstellen, orgErwaehnungErstellen, ereignisErstellen, laufErstellen, laufAbschliessen } from "../lib/db.js";
 import { newsletterHtmlErstellen, newsletterSenden } from "../lib/email.js";
+import type { FehlgeschlagenerArtikel } from "../lib/email.js";
 import type { SuchErgebnis, ArtikelExtraktion } from "../lib/typen.js";
 
 export const monitorTask = task({
     id: "schulmonitor-ausfuehren",
-    maxDuration: 600,
+    maxDuration: 7200,
     retry: { maxAttempts: 1 },
     run: async () => {
         const laufId = await laufErstellen();
@@ -23,6 +24,7 @@ export const monitorTask = task({
             artikelGefunden = neueErgebnisse.length;
 
             const verarbeiteteArtikel: Array<{ ergebnis: SuchErgebnis; extraktion: ArtikelExtraktion }> = [];
+            const fehlgeschlageneArtikel: FehlgeschlagenerArtikel[] = [];
 
             for (const ergebnis of neueErgebnisse) {
                 try {
@@ -75,13 +77,19 @@ export const monitorTask = task({
                 } catch (fehler) {
                     const meldung = fehler instanceof Error ? fehler.message : "Unbekannter Fehler";
                     console.error(`Fehler bei Artikel ${ergebnis.url}: ${meldung}`);
+                    fehlgeschlageneArtikel.push({
+                        url: ergebnis.url,
+                        titel: ergebnis.titel,
+                        quellen_name: ergebnis.quellen_name ?? null,
+                        fehler: meldung,
+                    });
                 }
             }
 
             // Generate and send newsletter
             let emailId: string | undefined;
-            if (verarbeiteteArtikel.length > 0) {
-                const html = newsletterHtmlErstellen(verarbeiteteArtikel);
+            if (verarbeiteteArtikel.length > 0 || fehlgeschlageneArtikel.length > 0) {
+                const html = newsletterHtmlErstellen(verarbeiteteArtikel, fehlgeschlageneArtikel);
                 const heute = new Date().toISOString().split("T")[0];
                 const betreff = `Schulmonitor ZH — ${heute}`;
                 emailId = await newsletterSenden(html, betreff);

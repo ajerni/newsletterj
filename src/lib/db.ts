@@ -61,13 +61,13 @@ export async function artikelSpeichern(
             auswirkungen, kontext_bezug, roh_json,
             extrahiert_am, lauf_id
         ) VALUES (
-            ${ergebnis.url}, ${ergebnis.titel}, ${ergebnis.ausschnitt},
-            ${ergebnis.veroeffentlicht_am}, ${ergebnis.quellen_name ?? null},
+            ${ergebnis.url}, ${ergebnis.titel ?? null}, ${ergebnis.ausschnitt ?? null},
+            ${ergebnis.veroeffentlicht_am ?? null}, ${ergebnis.quellen_name ?? null},
             ${ergebnis.quellen_domain ?? null}, ${ergebnis.such_engine},
-            ${extraktion.kategorie}, ${extraktion.kategorien as string[]},
-            ${extraktion.relevanz}, ${gemeindeId},
-            ${extraktion.schule}, ${extraktion.zusammenfassung},
-            ${extraktion.auswirkungen}, ${extraktion.kontext_bezug},
+            ${extraktion.kategorie ?? null}, ${(extraktion.kategorien ?? []) as string[]},
+            ${extraktion.relevanz ?? "mittel"}, ${gemeindeId ?? null},
+            ${extraktion.schule ?? null}, ${extraktion.zusammenfassung ?? null},
+            ${extraktion.auswirkungen ?? null}, ${extraktion.kontext_bezug ?? null},
             ${JSON.stringify(ergebnis.roh_json ?? null)},
             NOW(), ${laufId}
         )
@@ -189,7 +189,7 @@ export async function ereignisErstellen(artikelId: number, daten: {
 }): Promise<void> {
     await sql`
         INSERT INTO newsletterj_ereignisse (artikel_id, typ, titel, beschreibung, gemeinde_id, schule, ereignis_datum, relevanz)
-        VALUES (${artikelId}, ${daten.typ}, ${daten.titel}, ${daten.beschreibung}, ${daten.gemeinde_id}, ${daten.schule}, ${daten.ereignis_datum}, ${daten.relevanz})
+        VALUES (${artikelId}, ${daten.typ}, ${daten.titel}, ${daten.beschreibung ?? null}, ${daten.gemeinde_id ?? null}, ${daten.schule ?? null}, ${daten.ereignis_datum ?? null}, ${daten.relevanz ?? "mittel"})
     `;
 }
 
