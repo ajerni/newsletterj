@@ -9,15 +9,57 @@ import {
     gemeindeAliasHinzufuegen,
 } from "./db.js";
 import type { ArtikelExtraktion } from "./typen.js";
-import { llmJsonParsen } from "./json.js";
+import { llmJsonParsen, llmInhaltExtrahieren } from "./json.js";
+import type { OpenRouterChatAntwort } from "./json.js";
 
-interface ChatAntwort {
-    choices: Array<{ message: { content: string } }>;
+/**
+ * Sends a matching prompt to OpenRouter and returns the parsed
+ * {"uebereinstimmung_id": ...} result, or null when the call/parsing fails
+ * after retries (callers treat null as "no match", which is safe).
+ */
+async function kiAbgleichAnfrage(prompt: string): Promise<number | null> {
+    for (let versuch = 1; versuch <= 2; versuch++) {
+        try {
+            const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    model: process.env.OPENROUTER_MODEL,
+                    messages: [{ role: "user", content: prompt }],
+                    // Reasoning models spend "thinking" tokens from this budget
+                    // before the JSON answer; 100 was too tight and caused
+                    // empty/truncated responses
+                    max_tokens: 2000,
+                    temperature: 0.1,
+                    response_format: { type: "json_object" },
+                }),
+            });
+
+            if (!antwort.ok) {
+                throw new Error(`OpenRouter fehlgeschlagen: ${antwort.status} ${antwort.statusText}`);
+            }
+
+            const daten: OpenRouterChatAntwort = await antwort.json();
+            const ergebnis = llmJsonParsen<{ uebereinstimmung_id?: number | null }>(llmInhaltExtrahieren(daten));
+            const id = ergebnis.uebereinstimmung_id;
+            return typeof id === "number" ? id : null;
+        } catch {
+            if (versuch < 2) await new Promise((r) => setTimeout(r, 1000));
+        }
+    }
+    return null;
 }
 
 interface PersonenAufloesungErgebnis {
     personen_erstellt: number;
     personen_aktualisiert: number;
+}
+
+function nameNormalisieren(name: string): string {
+    return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 export async function personenAufloesen(
@@ -35,7 +77,13 @@ export async function personenAufloesen(
         const kandidaten = await personenKandidatenFinden(person.name, gemeindeId);
 
         if (kandidaten.length > 0) {
-            const uebereinstimmung = await kiPersonAbgleich(person, kandidaten);
+            // Exact name match first (case/whitespace-insensitive) — skips the
+            // LLM call for the common case of an unambiguous identical name
+            const exakte = kandidaten.filter(
+                (k) => nameNormalisieren(k.name) === nameNormalisieren(person.name)
+            );
+            const uebereinstimmung =
+                exakte.length === 1 ? exakte[0].id : await kiPersonAbgleich(person, kandidaten);
 
             if (uebereinstimmung) {
                 await personAktualisieren(uebereinstimmung, {
@@ -106,26 +154,7 @@ ${kandidaten.map((k) => `- ID ${k.id}: ${k.name}, ${k.aktuelle_funktion || "kein
 Antworte mit JSON: {"uebereinstimmung_id": <id oder null>}
 Nur eine Übereinstimmung melden wenn du dir sicher bist, dass es dieselbe Person ist.`;
 
-    const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL,
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 100,
-            temperature: 0.1,
-            response_format: { type: "json_object" },
-        }),
-    });
-
-    if (!antwort.ok) return null;
-
-    const daten: ChatAntwort = await antwort.json();
-    const ergebnis = llmJsonParsen<{ uebereinstimmung_id: number | null }>(daten.choices[0].message.content);
-    return ergebnis.uebereinstimmung_id ?? null;
+    return kiAbgleichAnfrage(prompt);
 }
 
 async function kiGemeindeAbgleich(
@@ -142,24 +171,5 @@ ${bekannteGemeinden.map((g) => `- ID ${g.id}: ${g.name} (Aliase: ${g.aliase.join
 Antworte mit JSON: {"uebereinstimmung_id": <id oder null>}
 Nur eine Übereinstimmung melden wenn es sich eindeutig um dieselbe Gemeinde handelt (z.B. "Stadt Zürich" = "Zürich", "Gemeinde Uster" = "Uster").`;
 
-    const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: process.env.OPENROUTER_MODEL,
-            messages: [{ role: "user", content: prompt }],
-            max_tokens: 100,
-            temperature: 0.1,
-            response_format: { type: "json_object" },
-        }),
-    });
-
-    if (!antwort.ok) return null;
-
-    const daten: ChatAntwort = await antwort.json();
-    const ergebnis = llmJsonParsen<{ uebereinstimmung_id: number | null }>(daten.choices[0].message.content);
-    return ergebnis.uebereinstimmung_id ?? null;
+    return kiAbgleichAnfrage(prompt);
 }

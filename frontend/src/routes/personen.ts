@@ -1,17 +1,57 @@
 import { Hono } from "hono";
 import sql from "../db.js";
 import { esc } from "../html.js";
+import { datumFormatieren, datumRelativ, kategorieBadge, seitenNavigation } from "../ui.js";
 
 export const personenRoutes = new Hono();
 
+const SEITEN_GROESSE = 30;
+
 personenRoutes.get("/", async (c) => {
+    const seite = Math.max(1, Number(c.req.query("seite")) || 1);
+    const suche = (c.req.query("suche") || "").trim();
+    const gemeindeId = Number(c.req.query("gemeinde")) || 0;
+    const sortierung = c.req.query("sortierung") || "aktivitaet";
+    const offset = (seite - 1) * SEITEN_GROESSE;
+
+    const bedingungen = [
+        suche ? sql`(p.name ILIKE ${"%" + suche + "%"} OR p.aktuelle_funktion ILIKE ${"%" + suche + "%"} OR p.aktuelle_organisation ILIKE ${"%" + suche + "%"})` : null,
+        gemeindeId ? sql`p.aktuelle_gemeinde_id = ${gemeindeId}` : null,
+    ].filter((b): b is NonNullable<typeof b> => b !== null);
+
+    const whereKlausel = bedingungen.length
+        ? bedingungen.slice(1).reduce((acc, b) => sql`${acc} AND ${b}`, sql`WHERE ${bedingungen[0]}`)
+        : sql``;
+
+    const orderKlausel = sortierung === "name"
+        ? sql`ORDER BY p.name ASC`
+        : sortierung === "neueste"
+            ? sql`ORDER BY p.zuletzt_gesehen_am DESC`
+            : sql`ORDER BY p.artikel_anzahl DESC, p.zuletzt_gesehen_am DESC`;
+
     const personen = await sql`
         SELECT p.*, g.name as gemeinde_name
         FROM newsletterj_personen p
         LEFT JOIN newsletterj_gemeinden g ON g.id = p.aktuelle_gemeinde_id
-        ORDER BY p.zuletzt_gesehen_am DESC
-        LIMIT 50
+        ${whereKlausel}
+        ${orderKlausel}
+        LIMIT ${SEITEN_GROESSE} OFFSET ${offset}
     `;
+
+    const [{ count: anzahl }] = await sql`
+        SELECT COUNT(*)::int as count FROM newsletterj_personen p ${whereKlausel}
+    ` as unknown as [{ count: number }];
+
+    const gesamtSeiten = Math.ceil(anzahl / SEITEN_GROESSE);
+
+    const gemeinden = await sql`
+        SELECT g.id, g.name FROM newsletterj_gemeinden g
+        WHERE EXISTS (SELECT 1 FROM newsletterj_personen p WHERE p.aktuelle_gemeinde_id = g.id)
+        ORDER BY g.name
+    `;
+    const gemeindeOptionen = gemeinden
+        .map((g) => `<option value="${g.id}" ${gemeindeId === g.id ? "selected" : ""}>${esc(g.name)}</option>`)
+        .join("");
 
     const zeilen = personen.map((p) => `
         <tr>
@@ -20,19 +60,31 @@ personenRoutes.get("/", async (c) => {
             <td>${esc(p.gemeinde_name || "—")}</td>
             <td>${esc(p.aktuelle_organisation || "—")}</td>
             <td><strong>${p.artikel_anzahl}</strong></td>
-            <td class="muted">${datumFormatieren(p.zuletzt_gesehen_am)}</td>
+            <td class="muted">${datumRelativ(p.zuletzt_gesehen_am)}</td>
         </tr>
     `).join("");
+
+    const filterQuery = `suche=${encodeURIComponent(suche)}&gemeinde=${gemeindeId || ""}&sortierung=${sortierung}`;
 
     return c.html(`
         <div class="header-row">
             <h2>Personen</h2>
-            <span class="muted">${personen.length} Personen</span>
+            <span class="muted">${anzahl} Personen</span>
         </div>
+        <form class="filter-bar filter-bar-grid" hx-get="/api/personen" hx-target="#content" hx-trigger="change, submit, input delay:400ms from:input[name='suche']" hx-include="this">
+            <input type="search" name="suche" placeholder="Suche nach Name, Funktion, Organisation…" value="${esc(suche)}" class="filter-suche">
+            <select name="gemeinde"><option value="">Alle Gemeinden</option>${gemeindeOptionen}</select>
+            <select name="sortierung">
+                <option value="aktivitaet" ${sortierung === "aktivitaet" ? "selected" : ""}>Meiste Artikel</option>
+                <option value="neueste" ${sortierung === "neueste" ? "selected" : ""}>Zuletzt gesehen</option>
+                <option value="name" ${sortierung === "name" ? "selected" : ""}>Name A–Z</option>
+            </select>
+        </form>
         <table>
             <thead><tr><th>Name</th><th>Funktion</th><th>Gemeinde</th><th>Organisation</th><th>Artikel</th><th>Zuletzt</th></tr></thead>
-            <tbody>${zeilen || '<tr><td colspan="6" class="empty">Noch keine Personen erfasst</td></tr>'}</tbody>
+            <tbody>${zeilen || '<tr><td colspan="6" class="empty">Keine Personen gefunden</td></tr>'}</tbody>
         </table>
+        ${seitenNavigation(seite, gesamtSeiten, `/api/personen?${filterQuery}`)}
     `);
 });
 
@@ -47,7 +99,7 @@ personenRoutes.get("/:id", async (c) => {
     if (!person) return c.html('<p class="error">Person nicht gefunden</p>', 404);
 
     const erwaehnungen = await sql`
-        SELECT e.funktion_bei_erwaehnung, a.titel, a.url, a.quellen_name, a.gesucht_am, a.kategorie
+        SELECT e.funktion_bei_erwaehnung, a.id as artikel_id, a.titel, a.url, a.quellen_name, a.gesucht_am, a.kategorie, a.relevanz
         FROM newsletterj_erwaehnungen e
         JOIN newsletterj_artikel a ON a.id = e.artikel_id
         WHERE e.person_id = ${id}
@@ -62,9 +114,23 @@ personenRoutes.get("/:id", async (c) => {
         ORDER BY pf.beginn DESC NULLS FIRST
     `;
 
+    // Personen, die in denselben Artikeln vorkommen (Netzwerk)
+    const netzwerk = await sql`
+        SELECT p2.id, p2.name, p2.aktuelle_funktion, COUNT(*)::int as gemeinsame_artikel
+        FROM newsletterj_erwaehnungen e1
+        JOIN newsletterj_erwaehnungen e2 ON e2.artikel_id = e1.artikel_id AND e2.person_id != e1.person_id
+        JOIN newsletterj_personen p2 ON p2.id = e2.person_id
+        WHERE e1.person_id = ${id}
+        GROUP BY p2.id, p2.name, p2.aktuelle_funktion
+        ORDER BY gemeinsame_artikel DESC
+        LIMIT 10
+    `;
+
     const erwaehnungenHtml = erwaehnungen.map((e) => `
         <li>
-            <a href="${esc(e.url)}" target="_blank">${esc(e.titel || "Ohne Titel")}</a>
+            <a href="#" hx-get="/api/artikel/${e.artikel_id}" hx-target="#content">${esc(e.titel || "Ohne Titel")}</a>
+            <a href="${esc(e.url)}" target="_blank" class="extern-link" title="Original öffnen">↗</a>
+            ${kategorieBadge(e.kategorie)}
             <span class="muted">${esc(e.quellen_name || "")} — ${datumFormatieren(e.gesucht_am)}</span>
             ${e.funktion_bei_erwaehnung ? `<span class="badge">${esc(e.funktion_bei_erwaehnung)}</span>` : ""}
         </li>
@@ -72,6 +138,12 @@ personenRoutes.get("/:id", async (c) => {
 
     const funktionenHtml = funktionen.map((f) => `
         <li>${esc(f.funktion)} ${f.organisation ? `bei ${esc(f.organisation)}` : ""} ${f.gemeinde_name ? `(${esc(f.gemeinde_name)})` : ""}</li>
+    `).join("");
+
+    const netzwerkHtml = netzwerk.map((n) => `
+        <li><a href="#" hx-get="/api/personen/${n.id}" hx-target="#content">${esc(n.name)}</a>
+        <span class="muted">${esc(n.aktuelle_funktion || "")}</span>
+        <strong>${n.gemeinsame_artikel} gemeinsam</strong></li>
     `).join("");
 
     return c.html(`
@@ -83,15 +155,15 @@ personenRoutes.get("/:id", async (c) => {
             <p><strong>Organisation:</strong> ${esc(person.aktuelle_organisation || "—")}</p>
             <p><strong>Artikel:</strong> ${person.artikel_anzahl}</p>
             <p><strong>Erstmals gesehen:</strong> ${datumFormatieren(person.erstmals_gesehen_am)}</p>
+            ${person.notizen ? `<p><strong>Notizen:</strong> ${esc(person.notizen)}</p>` : ""}
         </div>
 
-        ${funktionen.length > 0 ? `<h3>Funktionshistorie</h3><ul class="simple-list">${funktionenHtml}</ul>` : ""}
+        <div class="section-row">
+            ${funktionen.length ? `<div class="section-half"><h3>Funktionshistorie</h3><ul class="simple-list">${funktionenHtml}</ul></div>` : ""}
+            ${netzwerk.length ? `<div class="section-half"><h3>Netzwerk (gemeinsame Artikel)</h3><ul class="simple-list">${netzwerkHtml}</ul></div>` : ""}
+        </div>
 
         <h3>Erwähnungen (${erwaehnungen.length})</h3>
         <ul class="simple-list">${erwaehnungenHtml || '<li class="muted">Keine Erwähnungen</li>'}</ul>
     `);
 });
-
-function datumFormatieren(d: Date | string): string {
-    return new Date(d).toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" });
-}

@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npx trigger.dev@3 dev",
-    "deploy": "npx trigger.dev@3 deploy",
+    "dev": "npx trigger.dev@4.5.0 dev --profile wineagent --api-url https://triggerdev.wineagent.ch",
+    "deploy": "npx trigger.dev@4.5.0 deploy --profile wineagent --api-url https://triggerdev.wineagent.ch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@trigger.dev/sdk": "^4.4.6",
+    "@trigger.dev/sdk": "4.5.0",
     "postgres": "^3.4.0"
   },
   "devDependencies": {

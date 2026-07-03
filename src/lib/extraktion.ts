@@ -1,7 +1,8 @@
 import type { ArtikelExtraktion } from "./typen.js";
 import { KATEGORIEN, RELEVANZ_STUFEN, ORG_TYPEN } from "../config/kategorien.js";
 import type { Kategorie, Relevanz, OrgTyp } from "../config/kategorien.js";
-import { llmJsonParsen } from "./json.js";
+import { llmJsonParsen, llmInhaltExtrahieren } from "./json.js";
+import type { OpenRouterChatAntwort } from "./json.js";
 
 const SYSTEM_PROMPT = `Du bist ein professioneller Investigativ-Rechercheur und Medienanalyst mit Schwerpunkt Bildungspolitik, Volksschulen und öffentliche Verwaltung im Kanton Zürich, Schweiz.
 
@@ -27,30 +28,6 @@ Verfügbare Organisationstypen: volksschulamt, bildungsdirektion, bildungsrat, f
 
 Berücksichtige ausschliesslich Schulen und Bildungsthemen im Kanton Zürich.`;
 
-type InhaltTeil = { type?: string; text?: string };
-
-interface ChatAntwort {
-    choices?: Array<{ message?: { content?: string | InhaltTeil[] | null } }>;
-    error?: { message?: string };
-}
-
-/**
- * Extracts textual content from an OpenRouter chat response, tolerating
- * error payloads, null content, and content-part arrays (multimodal/reasoning
- * models). Throws with a clear message when no usable text is present.
- */
-function inhaltAusAntwort(daten: ChatAntwort): string {
-    if (daten?.error) {
-        throw new Error(`OpenRouter Fehler: ${daten.error.message ?? "unbekannt"}`);
-    }
-    const content = daten?.choices?.[0]?.message?.content;
-    if (typeof content === "string") return content;
-    if (Array.isArray(content)) {
-        return content.map((teil) => (typeof teil?.text === "string" ? teil.text : "")).join("").trim();
-    }
-    throw new Error("OpenRouter lieferte keinen Textinhalt");
-}
-
 export async function artikelExtrahieren(
     titel: string,
     ausschnitt: string,
@@ -62,7 +39,7 @@ Titel: ${titel}
 Inhalt: ${ausschnitt}`;
 
     let letzterFehler: unknown;
-    for (let versuch = 1; versuch <= 2; versuch++) {
+    for (let versuch = 1; versuch <= 3; versuch++) {
         try {
             const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
                 method: "POST",
@@ -76,7 +53,9 @@ Inhalt: ${ausschnitt}`;
                         { role: "system", content: SYSTEM_PROMPT },
                         { role: "user", content: benutzerPrompt },
                     ],
-                    max_tokens: 2000,
+                    // Generous limit: reasoning models spend "thinking" tokens
+                    // from the same budget before emitting the JSON answer
+                    max_tokens: 8000,
                     temperature: 0.2,
                     response_format: { type: "json_object" },
                 }),
@@ -86,15 +65,14 @@ Inhalt: ${ausschnitt}`;
                 throw new Error(`OpenRouter fehlgeschlagen: ${antwort.status} ${antwort.statusText}`);
             }
 
-            const daten: ChatAntwort = await antwort.json();
-            const inhalt = inhaltAusAntwort(daten);
-            if (!inhalt.trim()) {
-                throw new Error("OpenRouter lieferte leeren Inhalt");
-            }
+            const daten: OpenRouterChatAntwort = await antwort.json();
+            const inhalt = llmInhaltExtrahieren(daten);
 
             return normalisiereExtraktion(llmJsonParsen(inhalt));
         } catch (fehler) {
             letzterFehler = fehler;
+            // Brief pause before retrying, in case of transient model hiccups
+            if (versuch < 3) await new Promise((r) => setTimeout(r, 1000 * versuch));
         }
     }
 

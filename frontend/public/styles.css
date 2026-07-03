@@ -491,6 +491,189 @@ td.actions {
 .badge-mittel { background: #fef3c7; color: #92400e; }
 .badge-tief { background: #f3f4f6; color: #6b7280; }
 
+/* Category / municipality badges */
+.badge-kategorie {
+    background: #eff6ff;
+    color: #1d4ed8;
+    text-transform: capitalize;
+    cursor: pointer;
+}
+
+.badge-kategorie:hover {
+    background: #dbeafe;
+}
+
+.badge-gemeinde {
+    background: #f0fdf4;
+    color: #166534;
+}
+
+/* Article cards (Medienspiegel) */
+.artikel-liste {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.artikel-karte {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 16px 20px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.artikel-karte:hover {
+    border-color: #bfdbfe;
+    box-shadow: 0 1px 4px rgba(29, 78, 216, 0.08);
+}
+
+.artikel-karte-meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+}
+
+.quelle-tag {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1d4ed8;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.artikel-karte-titel {
+    font-size: 16px;
+    margin-bottom: 6px;
+}
+
+.artikel-karte-titel a {
+    color: #111827;
+    text-decoration: none;
+}
+
+.artikel-karte-titel a:hover {
+    color: #1d4ed8;
+}
+
+.extern-link {
+    color: #9ca3af;
+    text-decoration: none;
+    font-size: 14px;
+    margin-left: 4px;
+}
+
+.extern-link:hover {
+    color: #1d4ed8;
+}
+
+.artikel-karte-text {
+    font-size: 14px;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.artikel-detail h3 {
+    margin-top: 16px;
+    margin-bottom: 4px;
+}
+
+/* Filter bar grid (search + selects) */
+.filter-bar-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.filter-suche {
+    flex: 1 1 240px;
+    padding: 7px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+}
+
+.filter-suche:focus {
+    outline: none;
+    border-color: #1d4ed8;
+    box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.1);
+}
+
+/* Trend bars */
+.trend-liste {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.trend-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 32px;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 3px 6px;
+    border-radius: 6px;
+}
+
+.trend-row:hover {
+    background: #f3f4f6;
+}
+
+.trend-label {
+    text-transform: capitalize;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.trend-balken-wrap {
+    background: #f3f4f6;
+    border-radius: 4px;
+    height: 10px;
+    overflow: hidden;
+}
+
+.trend-balken {
+    background: #3b82f6;
+    height: 100%;
+    border-radius: 4px;
+}
+
+/* Clickable stat cards */
+.stat-card[hx-get] {
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.stat-card[hx-get]:hover {
+    border-color: #bfdbfe;
+    box-shadow: 0 1px 4px rgba(29, 78, 216, 0.08);
+}
+
+/* Event list entries */
+.ereignis-liste li {
+    flex-wrap: wrap;
+}
+
+.ereignis-liste li p {
+    width: 100%;
+    margin: 2px 0 0;
+}
+
+/* HTMX loading indicator */
+#content.htmx-request {
+    opacity: 0.5;
+    transition: opacity 0.2s;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }

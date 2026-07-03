@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schulmonitor ZH</title>
+    <title>Schulmonitor ZH — Medienspiegel</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="https://unpkg.com/htmx.org@2.0.4"></script>
 </head>
@@ -13,7 +13,7 @@
             <h1>Schulmonitor ZH</h1>
             <nav>
                 <button class="nav-btn active" hx-get="/api/dashboard" hx-target="#content" onclick="setActive(this)">Übersicht</button>
-                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Artikel</button>
+                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Medienspiegel</button>
                 <button class="nav-btn" hx-get="/api/personen" hx-target="#content" onclick="setActive(this)">Personen</button>
                 <button class="nav-btn" hx-get="/api/ereignisse" hx-target="#content" onclick="setActive(this)">Ereignisse</button>
                 <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
@@ -31,6 +31,17 @@
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             el.classList.add('active');
         }
+        // Keep nav highlighting in sync when navigating via links inside the content
+        // (e.g. category badges, person links) rather than the nav buttons
+        document.body.addEventListener('htmx:afterSwap', (e) => {
+            const pfad = e.detail?.pathInfo?.requestPath || '';
+            const sektion = pfad.split('?')[0].split('/')[2];
+            if (!sektion) return;
+            const btn = [...document.querySelectorAll('.nav-btn')].find((b) =>
+                (b.getAttribute('hx-get') || '').startsWith('/api/' + sektion)
+            );
+            if (btn) setActive(btn);
+        });
     </script>
 </body>
 </html>

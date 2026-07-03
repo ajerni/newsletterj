@@ -8,6 +8,29 @@ import type { SuchErgebnis } from "./typen.js";
 const MIN_ERGEBNISSE = 3;
 const BRAVE_VERZOEGERUNG_MS = 1500;
 
+// Tracking-Parameter, die verschiedene URLs für denselben Artikel erzeugen
+const TRACKING_PARAMS = /^(utm_|fbclid|gclid|msclkid|mc_cid|mc_eid|igshid|ref$)/i;
+
+/**
+ * Normalizes article URLs so that variants of the same page (tracking
+ * params, fragments, trailing slashes) deduplicate to one entry.
+ */
+export function urlNormalisieren(roh: string): string {
+    try {
+        const url = new URL(roh);
+        url.hash = "";
+        for (const param of [...url.searchParams.keys()]) {
+            if (TRACKING_PARAMS.test(param)) url.searchParams.delete(param);
+        }
+        if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
+            url.pathname = url.pathname.slice(0, -1);
+        }
+        return url.toString();
+    } catch {
+        return roh;
+    }
+}
+
 export async function alleSuchenAusfuehren(): Promise<SuchErgebnis[]> {
     const alleDomains = MEDIEN_QUELLEN.map((q) => q.domain);
     let alleErgebnisse: SuchErgebnis[] = [];
@@ -20,6 +43,10 @@ export async function alleSuchenAusfuehren(): Promise<SuchErgebnis[]> {
             await verzoegerung(BRAVE_VERZOEGERUNG_MS);
             const braveErgebnisse = await braveSuche(anfrage);
             kombiniert = ergebnisseZusammenfuehren(exaErgebnisse, braveErgebnisse);
+        }
+
+        for (const ergebnis of kombiniert) {
+            ergebnis.url = urlNormalisieren(ergebnis.url);
         }
 
         alleErgebnisse = ergebnisseZusammenfuehren(alleErgebnisse, kombiniert);
