@@ -36,6 +36,9 @@
                     <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
                     <button class="nav-btn" hx-get="/api/laeufe" hx-target="#content" onclick="setActive(this)">Läufe</button>
                 </nav>
+                <form method="post" action="/logout" class="logout-form">
+                    <button type="submit" class="nav-btn logout-btn">Logout</button>
+                </form>
                 <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Darstellung wechseln" title="Hell / Dunkel">☀</button>
             </div>
         </div>

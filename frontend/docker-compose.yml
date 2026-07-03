@@ -19,7 +19,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=iotnetwork
-      - traefik.http.routers.media-frontend.rule=Host(`media.ernilabs.ch`)
+      - traefik.http.routers.media-frontend.rule=Host(`media.ernilabs.com`)
       - traefik.http.routers.media-frontend.entrypoints=websecure
       - traefik.http.routers.media-frontend.tls=true
       - traefik.http.routers.media-frontend.tls.certresolver=lets-encrypt
