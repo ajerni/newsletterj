@@ -81,7 +81,61 @@ Related records: persons, mentions, organisations, events — all derived from O
 
 ---
 
-## 5. Exa Summary vs OpenRouter Summary
+## 5. Article Deduplication
+
+Duplicate articles are prevented at three levels, all keyed on **exact URL match**.
+
+### Within a single run (in memory)
+
+`ergebnisseZusammenfuehren()` in `src/lib/suche.ts` merges Exa/Brave results and results across the 15 queries using a `Set` of URLs — the same URL appears only once per run.
+
+### Before processing (DB pre-check)
+
+After search, known URLs are filtered out before any OpenRouter calls:
+
+```typescript
+const bekannteUrls = await vorhandeneUrls(alleErgebnisse.map((e) => e.url));
+return alleErgebnisse.filter((e) => !bekannteUrls.has(e.url));
+```
+
+`vorhandeneUrls()` loads existing URLs from `newsletterj_artikel`. Anything already in the DB is skipped entirely — no re-extraction, no re-save, no newsletter entry.
+
+### On insert (database constraint)
+
+The schema defines `url VARCHAR(2000) NOT NULL UNIQUE`. `artikelSpeichern` uses `ON CONFLICT (url) DO NOTHING`; if a URL slips through the pre-check, Postgres rejects the duplicate. `monitor-task.ts` skips further processing when no row id is returned.
+
+### What happens on a later run (e.g. 2 days later)
+
+Search still runs (Exa looks back 7 days), so many URLs from a previous run may appear again. For URLs already in the DB:
+
+- No duplicate rows in the database
+- No second OpenRouter call
+- No re-entry in the newsletter
+- Existing article records are **not updated** (no refreshed summary or categories)
+
+If every URL was already known, the newsletter is not sent (unless there are newly failed URLs in the *"Nicht automatisch verarbeitet"* section).
+
+### Billing on later runs
+
+Deduplication happens **after** Exa search completes. Known URLs are filtered out only before OpenRouter — not before Exa.
+
+| Service | Known URL returned again? | Charged again on a later run? |
+|--------|---------------------------|-------------------------------|
+| **Exa Search** | — | **Yes** — all 15 queries run every time |
+| **Exa Summaries** | Yes | **Yes** — summaries are fetched during search, before the DB filter |
+| **OpenRouter** | Yes | **No** — skipped after `vorhandeneUrls()` |
+
+So sequential runs (today, then 2 days later) do **not** double OpenRouter cost for the same URL. Exa search and summary charges can still apply for results Exa returns again.
+
+### What is not covered
+
+- **Same article, different URLs** — e.g. with/without query params (`?utm_source=...`), or `http` vs `https`. Treated as separate articles.
+- **URL normalization** — no trailing-slash or redirect canonicalization.
+- **Parallel runs (edge case only)** — if two monitor runs execute **at the same time**, both may call OpenRouter for the same *new* URL before either saves it. Only one row is saved (`UNIQUE`), but OpenRouter cost is paid twice. This does not happen with one run at a time.
+
+---
+
+## 6. Exa Summary vs OpenRouter Summary
 
 | | Exa Summary | OpenRouter `zusammenfassung` |
 |---|---|---|
@@ -93,7 +147,7 @@ Related records: persons, mentions, organisations, events — all derived from O
 
 ---
 
-## 6. Error Handling
+## 7. Error Handling
 
 - Each article is processed inside its own `try/catch` — one failure does not abort the run.
 - Failed URLs are logged, collected, and included in the newsletter as links.
