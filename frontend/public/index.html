@@ -13,7 +13,7 @@
             <h1>Schulmonitor ZH</h1>
             <nav>
                 <button class="nav-btn active" hx-get="/api/dashboard" hx-target="#content" onclick="setActive(this)">Übersicht</button>
-                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Medienspiegel</button>
+                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Artikel</button>
                 <button class="nav-btn" hx-get="/api/personen" hx-target="#content" onclick="setActive(this)">Personen</button>
                 <button class="nav-btn" hx-get="/api/ereignisse" hx-target="#content" onclick="setActive(this)">Ereignisse</button>
                 <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
@@ -26,6 +26,19 @@
             <p class="muted">Laden...</p>
         </div>
     </main>
+
+    <!-- Confirmation dialog (replaces native confirm() for hx-confirm) -->
+    <div id="confirm-overlay" class="modal-overlay" hidden>
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+            <h3 id="confirm-title">Bestätigen</h3>
+            <p id="confirm-message"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="confirm-cancel">Abbrechen</button>
+                <button type="button" class="btn btn-danger" id="confirm-ok">Löschen</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function setActive(el) {
             document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
@@ -42,6 +55,42 @@
             );
             if (btn) setActive(btn);
         });
+
+        // Styled confirmation dialog for all hx-confirm buttons
+        (function () {
+            const overlay = document.getElementById('confirm-overlay');
+            const message = document.getElementById('confirm-message');
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+            let issueRequest = null;
+
+            function schliessen() {
+                overlay.hidden = true;
+                issueRequest = null;
+            }
+
+            document.body.addEventListener('htmx:confirm', (e) => {
+                if (!e.detail.question) return; // no hx-confirm set
+                e.preventDefault();
+                message.textContent = e.detail.question;
+                issueRequest = () => e.detail.issueRequest(true);
+                overlay.hidden = false;
+                okBtn.focus();
+            });
+
+            okBtn.addEventListener('click', () => {
+                const anfrage = issueRequest;
+                schliessen();
+                if (anfrage) anfrage();
+            });
+            cancelBtn.addEventListener('click', schliessen);
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) schliessen();
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !overlay.hidden) schliessen();
+            });
+        })();
     </script>
 </body>
 </html>

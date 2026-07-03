@@ -26,6 +26,8 @@ Verfügbare Kategorien: ${KATEGORIEN.join(", ")}
 
 Verfügbare Organisationstypen: volksschulamt, bildungsdirektion, bildungsrat, fachstelle_schulbeurteilung, schulpflege, schulpraesidium, schulleitung, schulverwaltung, kreisschulbehoerde, zweckverband, primarschule, sekundarschule, sonderschule, tagesschule, berufsschule, kantonsschule, gemeinde
 
+Wichtig: Erfasse unter "personen" ausschliesslich Personen, die im Beitrag mit ihrem echten Namen (Vor- und/oder Nachname) genannt werden. Anonyme oder unbenannte Personen (z.B. "nicht namentlich genannt", "unbekannt", "ein Lehrer", "die Schulleiterin") NICHT aufführen — lasse das Array in diesem Fall leer.
+
 Berücksichtige ausschliesslich Schulen und Bildungsthemen im Kanton Zürich.`;
 
 export async function artikelExtrahieren(
@@ -88,6 +90,18 @@ function textOderNull(wert: unknown): string | null {
     return typeof wert === "string" && wert.trim() !== "" ? wert : null;
 }
 
+// Placeholder "names" the LLM sometimes emits for anonymous persons
+const PLATZHALTER_NAMEN = /^(nicht\s+(namentlich\s+)?genannt|unbekannt|anonym|keine?\s+angabe|n\.?\s*a\.?|unbenannt|niemand)/i;
+
+function istEchterPersonenname(name: string): boolean {
+    const bereinigt = name.trim();
+    if (bereinigt.length < 3) return false;
+    if (PLATZHALTER_NAMEN.test(bereinigt)) return false;
+    // Generic role descriptions instead of names (e.g. "ein Lehrer", "die Schulleiterin")
+    if (/^(ein|eine|der|die|das|mehrere|einige)\s/i.test(bereinigt)) return false;
+    return true;
+}
+
 function alsRelevanz(wert: unknown): Relevanz {
     return typeof wert === "string" && RELEVANZ_SET.has(wert) ? (wert as Relevanz) : "mittel";
 }
@@ -111,7 +125,7 @@ function normalisiereExtraktion(roh: any): ArtikelExtraktion {
 
     const personen = Array.isArray(roh?.personen)
         ? roh.personen
-              .filter((p: any) => p && typeof p.name === "string" && p.name.trim() !== "")
+              .filter((p: any) => p && typeof p.name === "string" && istEchterPersonenname(p.name))
               .map((p: any) => ({
                   name: p.name.trim(),
                   funktion: textOderNull(p.funktion) ?? "",

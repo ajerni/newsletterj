@@ -25,9 +25,11 @@ personenRoutes.get("/", async (c) => {
 
     const orderKlausel = sortierung === "name"
         ? sql`ORDER BY p.name ASC`
-        : sortierung === "neueste"
-            ? sql`ORDER BY p.zuletzt_gesehen_am DESC`
-            : sql`ORDER BY p.artikel_anzahl DESC, p.zuletzt_gesehen_am DESC`;
+        : sortierung === "name_desc"
+            ? sql`ORDER BY p.name DESC`
+            : sortierung === "neueste"
+                ? sql`ORDER BY p.zuletzt_gesehen_am DESC`
+                : sql`ORDER BY p.artikel_anzahl DESC, p.zuletzt_gesehen_am DESC`;
 
     const personen = await sql`
         SELECT p.*, g.name as gemeinde_name
@@ -78,6 +80,7 @@ personenRoutes.get("/", async (c) => {
                 <option value="aktivitaet" ${sortierung === "aktivitaet" ? "selected" : ""}>Meiste Artikel</option>
                 <option value="neueste" ${sortierung === "neueste" ? "selected" : ""}>Zuletzt gesehen</option>
                 <option value="name" ${sortierung === "name" ? "selected" : ""}>Name A–Z</option>
+                <option value="name_desc" ${sortierung === "name_desc" ? "selected" : ""}>Name Z–A</option>
             </select>
         </form>
         <table>

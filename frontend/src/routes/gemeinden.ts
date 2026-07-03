@@ -1,32 +1,36 @@
 import { Hono } from "hono";
 import sql from "../db.js";
 import { esc } from "../html.js";
-import { kategorieLabel, datumRelativ, relevanzBadge } from "../ui.js";
+import { kategorieLabel, datumRelativ, relevanzBadge, seitenNavigation } from "../ui.js";
 import { artikelKarte } from "./artikel.js";
 
 export const gemeindenRoutes = new Hono();
 
-gemeindenRoutes.get("/", async (c) => {
-    const suche = (c.req.query("suche") || "").trim();
+const SEITEN_GROESSE = 30;
 
-    const gemeinden = suche
-        ? await sql`
-            SELECT g.*,
-                (SELECT COUNT(*)::int FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) as artikel_anzahl,
-                (SELECT COUNT(*)::int FROM newsletterj_personen p WHERE p.aktuelle_gemeinde_id = g.id) as personen_anzahl,
-                (SELECT COUNT(*)::int FROM newsletterj_ereignisse e WHERE e.gemeinde_id = g.id) as ereignisse_anzahl
-            FROM newsletterj_gemeinden g
-            WHERE g.name ILIKE ${"%" + suche + "%"}
-            ORDER BY (SELECT COUNT(*) FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) DESC
-          `
-        : await sql`
-            SELECT g.*,
-                (SELECT COUNT(*)::int FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) as artikel_anzahl,
-                (SELECT COUNT(*)::int FROM newsletterj_personen p WHERE p.aktuelle_gemeinde_id = g.id) as personen_anzahl,
-                (SELECT COUNT(*)::int FROM newsletterj_ereignisse e WHERE e.gemeinde_id = g.id) as ereignisse_anzahl
-            FROM newsletterj_gemeinden g
-            ORDER BY (SELECT COUNT(*) FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) DESC
-          `;
+gemeindenRoutes.get("/", async (c) => {
+    const seite = Math.max(1, Number(c.req.query("seite")) || 1);
+    const suche = (c.req.query("suche") || "").trim();
+    const offset = (seite - 1) * SEITEN_GROESSE;
+
+    const whereKlausel = suche ? sql`WHERE g.name ILIKE ${"%" + suche + "%"}` : sql``;
+
+    const gemeinden = await sql`
+        SELECT g.*,
+            (SELECT COUNT(*)::int FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) as artikel_anzahl,
+            (SELECT COUNT(*)::int FROM newsletterj_personen p WHERE p.aktuelle_gemeinde_id = g.id) as personen_anzahl,
+            (SELECT COUNT(*)::int FROM newsletterj_ereignisse e WHERE e.gemeinde_id = g.id) as ereignisse_anzahl
+        FROM newsletterj_gemeinden g
+        ${whereKlausel}
+        ORDER BY (SELECT COUNT(*) FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) DESC
+        LIMIT ${SEITEN_GROESSE} OFFSET ${offset}
+    `;
+
+    const [{ count: anzahl }] = await sql`
+        SELECT COUNT(*)::int as count FROM newsletterj_gemeinden g ${whereKlausel}
+    ` as unknown as [{ count: number }];
+
+    const gesamtSeiten = Math.ceil(anzahl / SEITEN_GROESSE);
 
     const zeilen = gemeinden.map((g) => `
         <tr>
@@ -38,10 +42,12 @@ gemeindenRoutes.get("/", async (c) => {
         </tr>
     `).join("");
 
+    const filterQuery = `suche=${encodeURIComponent(suche)}`;
+
     return c.html(`
         <div class="header-row">
             <h2>Gemeinden</h2>
-            <span class="muted">${gemeinden.length} erfasst</span>
+            <span class="muted">${anzahl} erfasst</span>
         </div>
         <form class="filter-bar" hx-get="/api/gemeinden" hx-target="#content" hx-trigger="submit, input delay:400ms from:input[name='suche']" hx-include="this">
             <input type="search" name="suche" placeholder="Gemeinde suchen…" value="${esc(suche)}" class="filter-suche">
@@ -50,6 +56,7 @@ gemeindenRoutes.get("/", async (c) => {
             <thead><tr><th>Gemeinde</th><th>Aliase</th><th>Artikel</th><th>Personen</th><th>Ereignisse</th></tr></thead>
             <tbody>${zeilen || '<tr><td colspan="5" class="empty">Keine Gemeinden gefunden</td></tr>'}</tbody>
         </table>
+        ${seitenNavigation(seite, gesamtSeiten, `/api/gemeinden?${filterQuery}`)}
     `);
 });
 

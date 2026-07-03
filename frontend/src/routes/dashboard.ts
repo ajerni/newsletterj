@@ -42,7 +42,7 @@ dashboardRoutes.get("/", async (c) => {
         SELECT p.id, p.name, p.aktuelle_funktion, p.artikel_anzahl
         FROM newsletterj_personen p
         ORDER BY p.artikel_anzahl DESC, p.zuletzt_gesehen_am DESC
-        LIMIT 8
+        LIMIT 50
     `;
 
     const topGemeinden = await sql`
@@ -77,16 +77,27 @@ dashboardRoutes.get("/", async (c) => {
     `).join("");
 
     const personenHtml = topPersonen.map((p) => `
-        <li><a href="#" hx-get="/api/personen/${p.id}" hx-target="#content">${esc(p.name)}</a>
-        <span class="muted">${esc(p.aktuelle_funktion || "")}</span> <strong>${p.artikel_anzahl}</strong></li>
+        <li class="person-row" hx-get="/api/personen/${p.id}" hx-target="#content">
+            <span class="person-info">
+                <a href="#" hx-get="/api/personen/${p.id}" hx-target="#content">${esc(p.name)}</a>
+                ${p.aktuelle_funktion ? `<span class="muted">${esc(p.aktuelle_funktion)}</span>` : ""}
+            </span>
+            <span class="count-pill" title="${p.artikel_anzahl} Artikel">${p.artikel_anzahl}</span>
+        </li>
     `).join("");
 
     const gemeindenHtml = topGemeinden.map((g) => `
-        <li><a href="#" hx-get="/api/artikel?gemeinde=${g.id}" hx-target="#content">${esc(g.name)}</a> <strong>${g.anzahl}</strong></li>
+        <li class="zeile-mit-pill">
+            <a href="#" hx-get="/api/artikel?gemeinde=${g.id}" hx-target="#content">${esc(g.name)}</a>
+            <span class="count-pill" title="${g.anzahl} Artikel">${g.anzahl}</span>
+        </li>
     `).join("");
 
     const quellenHtml = topQuellen.map((q) => `
-        <li><a href="#" hx-get="/api/artikel?quelle=${encodeURIComponent(q.quellen_name)}" hx-target="#content">${esc(q.quellen_name)}</a> <strong>${q.anzahl}</strong></li>
+        <li class="zeile-mit-pill">
+            <a href="#" hx-get="/api/artikel?quelle=${encodeURIComponent(q.quellen_name)}" hx-target="#content">${esc(q.quellen_name)}</a>
+            <span class="count-pill" title="${q.anzahl} Artikel">${q.anzahl}</span>
+        </li>
     `).join("");
 
     const ereignisseHtml = letzteEreignisse.map((e) => `
@@ -108,7 +119,7 @@ dashboardRoutes.get("/", async (c) => {
         <div class="stats-grid">
             <div class="stat-card" hx-get="/api/artikel" hx-target="#content"><div class="stat-value">${artikelStats.gesamt}</div><div class="stat-label">Artikel gesamt</div></div>
             <div class="stat-card" hx-get="/api/artikel?tage=7" hx-target="#content"><div class="stat-value">${artikelStats.diese_woche}</div><div class="stat-label">Diese Woche</div></div>
-            <div class="stat-card" hx-get="/api/artikel?relevanz=hoch&tage=30" hx-target="#content"><div class="stat-value">${artikelStats.hoch_relevant}</div><div class="stat-label">Hoch relevant (30 T.)</div></div>
+            <div class="stat-card" hx-get="/api/artikel?relevanz=hoch&tage=30" hx-target="#content"><div class="stat-value">${artikelStats.hoch_relevant}</div><div class="stat-label">Hoch relevant</div></div>
             <div class="stat-card" hx-get="/api/personen" hx-target="#content"><div class="stat-value">${personenStats.gesamt}</div><div class="stat-label">Personen</div></div>
             <div class="stat-card" hx-get="/api/ereignisse" hx-target="#content"><div class="stat-value">${ereignisseStats.gesamt}</div><div class="stat-label">Ereignisse</div></div>
         </div>
@@ -124,22 +135,26 @@ dashboardRoutes.get("/", async (c) => {
             </div>
             <div class="section-half">
                 <h3>Meist erwähnte Personen</h3>
-                <ul class="simple-list">${personenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                <div class="scroll-list personen-scroll">
+                    <ul class="simple-list">${personenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                </div>
             </div>
         </div>
 
         <div class="section-row">
             <div class="section-half">
                 <h3>Aktive Gemeinden (30 Tage)</h3>
-                <ul class="simple-list">${gemeindenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                <div class="ranking-panel">
+                    <ul class="simple-list">${gemeindenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                </div>
             </div>
             <div class="section-half">
                 <h3>Quellen (30 Tage)</h3>
-                <ul class="simple-list">${quellenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                <div class="ranking-panel">
+                    <ul class="simple-list">${quellenHtml || '<li class="muted">Noch keine Daten</li>'}</ul>
+                </div>
             </div>
         </div>
 
-        <h3>Neueste Ereignisse</h3>
-        <ul class="simple-list ereignis-liste">${ereignisseHtml || '<li class="muted">Noch keine Ereignisse</li>'}</ul>
     `);
 });

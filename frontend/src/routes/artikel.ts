@@ -24,6 +24,7 @@ artikelRoutes.get("/", async (c) => {
     const gemeindeId = Number(c.req.query("gemeinde")) || 0;
     const quelle = c.req.query("quelle") || "";
     const tage = Number(c.req.query("tage")) || 0;
+    const sortierung = c.req.query("sortierung") === "aelteste" ? "aelteste" : "neueste";
     const offset = (seite - 1) * SEITEN_GROESSE;
 
     // Compose WHERE conditions dynamically (postgres.js fragments)
@@ -46,7 +47,9 @@ artikelRoutes.get("/", async (c) => {
         FROM newsletterj_artikel a
         LEFT JOIN newsletterj_gemeinden g ON g.id = a.gemeinde_id
         ${whereKlausel}
-        ORDER BY a.gesucht_am DESC
+        ${sortierung === "aelteste"
+            ? sql`ORDER BY COALESCE(a.veroeffentlicht_am, a.gesucht_am) ASC`
+            : sql`ORDER BY COALESCE(a.veroeffentlicht_am, a.gesucht_am) DESC`}
         LIMIT ${SEITEN_GROESSE} OFFSET ${offset}
     `;
 
@@ -78,7 +81,7 @@ artikelRoutes.get("/", async (c) => {
 
     const karten = artikel.map((a) => artikelKarte(a)).join("");
 
-    const filterQuery = `suche=${encodeURIComponent(suche)}&kategorie=${encodeURIComponent(kategorie)}&relevanz=${encodeURIComponent(relevanz)}&gemeinde=${gemeindeId || ""}&quelle=${encodeURIComponent(quelle)}&tage=${tage || ""}`;
+    const filterQuery = `suche=${encodeURIComponent(suche)}&kategorie=${encodeURIComponent(kategorie)}&relevanz=${encodeURIComponent(relevanz)}&gemeinde=${gemeindeId || ""}&quelle=${encodeURIComponent(quelle)}&tage=${tage || ""}&sortierung=${sortierung}`;
     const filterAktiv = suche || kategorie || relevanz || gemeindeId || quelle || tage;
 
     return c.html(`
@@ -93,6 +96,10 @@ artikelRoutes.get("/", async (c) => {
             <select name="gemeinde"><option value="">Alle Gemeinden</option>${gemeindeOptionen}</select>
             <select name="quelle"><option value="">Alle Quellen</option>${quellenOptionen}</select>
             <select name="tage"><option value="">Gesamter Zeitraum</option>${zeitraumOptionen(tage ? String(tage) : null)}</select>
+            <select name="sortierung">
+                <option value="neueste" ${sortierung === "neueste" ? "selected" : ""}>Neueste zuerst</option>
+                <option value="aelteste" ${sortierung === "aelteste" ? "selected" : ""}>Älteste zuerst</option>
+            </select>
             ${filterAktiv ? `<button type="button" class="btn btn-sm" hx-get="/api/artikel" hx-target="#content">Filter zurücksetzen</button>` : ""}
         </form>
         <div class="artikel-liste">
@@ -157,9 +164,10 @@ artikelRoutes.get("/:id", async (c) => {
                 <span class="muted">${datumFormatieren(a.veroeffentlicht_am || a.gesucht_am, true)}</span>
                 ${relevanzBadge(a.relevanz)}
                 ${kategorieBadge(a.kategorie)}
+                ${a.gemeinde_name && a.gemeinde_id ? `<span class="badge badge-gemeinde" hx-get="/api/artikel?gemeinde=${a.gemeinde_id}" hx-target="#content">${esc(a.gemeinde_name)}</span>` : ""}
             </div>
             <h2><a href="${esc(a.url)}" target="_blank">${esc(a.titel || "Ohne Titel")} ↗</a></h2>
-            ${a.gemeinde_name || a.schule ? `<p class="muted">${[a.gemeinde_name, a.schule].filter(Boolean).map((t) => esc(t)).join(" — ")}</p>` : ""}
+            ${a.schule ? `<p class="muted">${esc(a.schule)}</p>` : ""}
             ${a.zusammenfassung ? `<h3>Zusammenfassung</h3><p>${esc(a.zusammenfassung)}</p>` : ""}
             ${a.auswirkungen ? `<h3>Mögliche Auswirkungen</h3><p>${esc(a.auswirkungen)}</p>` : ""}
             ${a.kontext_bezug ? `<h3>Kontext</h3><p>${esc(a.kontext_bezug)}</p>` : ""}
@@ -182,7 +190,9 @@ export function artikelKarte(a: any): string {
                 <span class="muted" title="${datumFormatieren(a.veroeffentlicht_am || a.gesucht_am, true)}">${datumRelativ(a.veroeffentlicht_am || a.gesucht_am)}</span>
                 ${relevanzBadge(a.relevanz)}
                 ${kategorieBadge(a.kategorie)}
-                ${a.gemeinde_name ? `<span class="badge badge-gemeinde">${esc(a.gemeinde_name)}</span>` : ""}
+                ${a.gemeinde_name ? (a.gemeinde_id
+                    ? `<span class="badge badge-gemeinde" hx-get="/api/artikel?gemeinde=${a.gemeinde_id}" hx-target="#content">${esc(a.gemeinde_name)}</span>`
+                    : `<span class="badge badge-gemeinde">${esc(a.gemeinde_name)}</span>`) : ""}
             </div>
             <h3 class="artikel-karte-titel">
                 <a href="#" hx-get="/api/artikel/${a.id}" hx-target="#content">${esc(a.titel || "Ohne Titel")}</a>

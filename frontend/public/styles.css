@@ -111,6 +111,12 @@ h3 {
     gap: 12px;
 }
 
+.header-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 /* Tables */
 table {
     width: 100%;
@@ -435,9 +441,13 @@ td.actions {
 
 .section-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 24px;
     margin-bottom: 28px;
+}
+
+.section-half {
+    min-width: 0;
 }
 
 .section-half h3 {
@@ -506,6 +516,14 @@ td.actions {
 .badge-gemeinde {
     background: #f0fdf4;
     color: #166534;
+}
+
+.badge-gemeinde[hx-get] {
+    cursor: pointer;
+}
+
+.badge-gemeinde[hx-get]:hover {
+    background: #dcfce7;
 }
 
 /* Article cards (Medienspiegel) */
@@ -666,6 +684,173 @@ td.actions {
 .ereignis-liste li p {
     width: 100%;
     margin: 2px 0 0;
+}
+
+/* Person rows (dashboard) */
+.person-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 52px;
+    padding: 7px 6px !important;
+    border-radius: 8px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.personen-scroll {
+    --scroll-row-height: 52px;
+    --scroll-visible-rows: 5;
+    max-height: calc(var(--scroll-row-height) * var(--scroll-visible-rows));
+    overflow-y: auto;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+}
+
+.personen-scroll .simple-list {
+    padding: 4px 8px;
+}
+
+.personen-scroll .simple-list li:last-child {
+    border-bottom: none;
+}
+
+.person-row:hover {
+    background: #f3f4f6;
+}
+
+.person-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.person-info a {
+    font-weight: 500;
+    color: #111827;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.person-info a:hover {
+    color: #1d4ed8;
+}
+
+.person-info .muted {
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Rows with count pill (Gemeinden, Quellen) */
+.ranking-panel {
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    padding: 4px 10px;
+}
+
+.ranking-panel .simple-list li:last-child {
+    border-bottom: none;
+}
+
+.zeile-mit-pill {
+    width: fit-content;
+    max-width: 100%;
+    gap: 8px;
+    padding: 7px 4px !important;
+    border-radius: 6px;
+}
+
+.zeile-mit-pill:hover {
+    background: #f9fafb;
+}
+
+.zeile-mit-pill a {
+    flex: 0 1 auto;
+    font-weight: 500;
+    color: #111827;
+    text-decoration: none;
+}
+
+.zeile-mit-pill a:hover {
+    color: #1d4ed8;
+}
+
+.count-pill {
+    flex-shrink: 0;
+    min-width: 24px;
+    padding: 1px 8px;
+    border-radius: 12px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.person-row .count-pill {
+    margin-left: auto;
+}
+
+/* Modal dialog */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    animation: modal-fade 0.15s ease-out;
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    max-width: 420px;
+    width: calc(100% - 48px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+    animation: modal-pop 0.15s ease-out;
+}
+
+.modal h3 {
+    margin-bottom: 8px;
+    font-size: 17px;
+    color: #111827;
+}
+
+.modal p {
+    font-size: 14px;
+    color: #4b5563;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+@keyframes modal-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes modal-pop {
+    from { opacity: 0; transform: scale(0.96) translateY(4px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
 /* HTMX loading indicator */
