@@ -115,6 +115,7 @@ export interface MonitorLauf {
 
 // AI extraction output schema
 export interface ArtikelExtraktion {
+    titel: string;
     zusammenfassung: string;
     kategorie: Kategorie;
     kategorien: Kategorie[];

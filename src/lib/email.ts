@@ -71,7 +71,7 @@ export function newsletterHtmlErstellen(
             const artikelHtml = eintraege
                 .map((a) => `
                     <li style="margin-bottom:14px;">
-                        <a href="${htmlEscape(a.ergebnis.url)}" style="color:#1d4ed8;text-decoration:none;font-weight:500;">${htmlEscape(a.ergebnis.titel)}</a>
+                        <a href="${htmlEscape(a.ergebnis.url)}" style="color:#1d4ed8;text-decoration:none;font-weight:500;">${htmlEscape(a.extraktion.titel)}</a>
                         <span style="color:#6b7280;font-size:12px;margin-left:8px;">${htmlEscape(a.ergebnis.quellen_name || "")}</span>
                         <span style="display:inline-block;padding:1px 6px;border-radius:8px;font-size:11px;background:${relevanzFarbe(a.extraktion.relevanz)};margin-left:6px;">${a.extraktion.relevanz}</span>
                         ${a.extraktion.gemeinde ? `<span style="color:#6b7280;font-size:12px;margin-left:6px;">${htmlEscape(a.extraktion.gemeinde)}</span>` : ""}

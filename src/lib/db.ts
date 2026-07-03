@@ -52,6 +52,11 @@ export async function artikelSpeichern(
     gemeindeId: number | null,
     laufId: number
 ): Promise<number> {
+    const rohJson = {
+        ...(ergebnis.roh_json ?? {}),
+        suchtitel: ergebnis.titel ?? null,
+    };
+
     const [row] = await sql`
         INSERT INTO newsletterj_artikel (
             url, titel, ausschnitt, veroeffentlicht_am,
@@ -61,14 +66,14 @@ export async function artikelSpeichern(
             auswirkungen, kontext_bezug, roh_json,
             extrahiert_am, lauf_id
         ) VALUES (
-            ${ergebnis.url}, ${ergebnis.titel ?? null}, ${ergebnis.ausschnitt ?? null},
+            ${ergebnis.url}, ${extraktion.titel ?? null}, ${ergebnis.ausschnitt ?? null},
             ${ergebnis.veroeffentlicht_am ?? null}, ${ergebnis.quellen_name ?? null},
             ${ergebnis.quellen_domain ?? null}, ${ergebnis.such_engine},
             ${extraktion.kategorie ?? null}, ${(extraktion.kategorien ?? []) as string[]},
             ${extraktion.relevanz ?? "mittel"}, ${gemeindeId ?? null},
             ${extraktion.schule ?? null}, ${extraktion.zusammenfassung ?? null},
             ${extraktion.auswirkungen ?? null}, ${extraktion.kontext_bezug ?? null},
-            ${JSON.stringify(ergebnis.roh_json ?? null)},
+            ${JSON.stringify(rohJson)},
             NOW(), ${laufId}
         )
         ON CONFLICT (url) DO NOTHING

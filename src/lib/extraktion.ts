@@ -9,6 +9,7 @@ const SYSTEM_PROMPT = `Du bist ein professioneller Investigativ-Rechercheur und 
 Analysiere den folgenden Medienbeitrag und extrahiere strukturierte Informationen. Antworte ausschliesslich mit einem JSON-Objekt im folgenden Format:
 
 {
+  "titel": "Prägnanter Titel passend zum analysierten Inhalt (nicht blind den Suchtitel übernehmen)",
   "zusammenfassung": "3-10 Sätze Zusammenfassung",
   "kategorie": "hauptkategorie",
   "kategorien": ["alle", "zutreffenden", "kategorien"],
@@ -28,6 +29,8 @@ Verfügbare Organisationstypen: volksschulamt, bildungsdirektion, bildungsrat, f
 
 Wichtig: Erfasse unter "personen" ausschliesslich Personen, die im Beitrag mit ihrem echten Namen (Vor- und/oder Nachname) genannt werden. Anonyme oder unbenannte Personen (z.B. "nicht namentlich genannt", "unbekannt", "ein Lehrer", "die Schulleiterin") NICHT aufführen — lasse das Array in diesem Fall leer.
 
+Der Feld "titel" soll den konkret analysierten Beitrag beschreiben. Bei Sammelseiten oder wenn der Suchtitel nicht zum Inhalt passt, formuliere einen eigenen, passenden Titel aus dem Inhalt — übernimm den Suchtitel nicht wörtlich, wenn er falsch oder irreführend ist.
+
 Berücksichtige ausschliesslich Schulen und Bildungsthemen im Kanton Zürich.`;
 
 export async function artikelExtrahieren(
@@ -37,7 +40,7 @@ export async function artikelExtrahieren(
 ): Promise<ArtikelExtraktion> {
     const benutzerPrompt = `Medienbeitrag:
 Quelle: ${quellenName || "Unbekannt"}
-Titel: ${titel}
+Suchtitel (von der Suche, kann ungenau sein): ${titel}
 Inhalt: ${ausschnitt}`;
 
     let letzterFehler: unknown;
@@ -70,7 +73,7 @@ Inhalt: ${ausschnitt}`;
             const daten: OpenRouterChatAntwort = await antwort.json();
             const inhalt = llmInhaltExtrahieren(daten);
 
-            return normalisiereExtraktion(llmJsonParsen(inhalt));
+            return normalisiereExtraktion(llmJsonParsen(inhalt), titel);
         } catch (fehler) {
             letzterFehler = fehler;
             // Brief pause before retrying, in case of transient model hiccups
@@ -115,7 +118,7 @@ function alsKategorie(wert: unknown): Kategorie | null {
  * ArtikelExtraktion so that no `undefined` or invalid enum value can reach the
  * database layer.
  */
-function normalisiereExtraktion(roh: any): ArtikelExtraktion {
+function normalisiereExtraktion(roh: any, suchtitel = ""): ArtikelExtraktion {
     const kategorien: Kategorie[] = Array.isArray(roh?.kategorien)
         ? (roh.kategorien.map(alsKategorie).filter((k: Kategorie | null): k is Kategorie => k !== null))
         : [];
@@ -157,6 +160,7 @@ function normalisiereExtraktion(roh: any): ArtikelExtraktion {
         : [];
 
     return {
+        titel: textOderNull(roh?.titel) ?? textOderNull(suchtitel) ?? "",
         zusammenfassung: textOderNull(roh?.zusammenfassung) ?? "",
         kategorie,
         kategorien,

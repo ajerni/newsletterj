@@ -86,7 +86,7 @@ artikelRoutes.get("/", async (c) => {
 
     return c.html(`
         <div class="header-row">
-            <h2>Medienspiegel</h2>
+            <h2>Artikel</h2>
             <span class="muted">${anzahl} Artikel${filterAktiv ? " (gefiltert)" : ""}</span>
         </div>
         <form class="filter-bar filter-bar-grid" hx-get="/api/artikel" hx-target="#content" hx-trigger="change, submit, input delay:400ms from:input[name='suche']" hx-include="this">
@@ -156,8 +156,16 @@ artikelRoutes.get("/:id", async (c) => {
         <li>${esc(o.name)} ${o.typ ? `<span class="muted">(${esc(o.typ.replace(/_/g, " "))})</span>` : ""}</li>
     `).join("");
 
+    const suchtitel = typeof a.roh_json === "object" && a.roh_json !== null
+        ? (a.roh_json as Record<string, unknown>).suchtitel
+        : null;
+    const suchtitelText = typeof suchtitel === "string" ? suchtitel.trim() : "";
+    const quellentitelHtml = suchtitelText && suchtitelText !== (a.titel || "").trim()
+        ? `<p class="muted quellentitel">Suchtitel: ${esc(suchtitelText)}</p>`
+        : "";
+
     return c.html(`
-        <button class="btn btn-sm" hx-get="/api/artikel" hx-target="#content">← Zurück zum Medienspiegel</button>
+        <button class="btn btn-sm" hx-get="/api/artikel" hx-target="#content">← Zurück zum Artikel</button>
         <div class="detail-card artikel-detail">
             <div class="artikel-karte-meta">
                 ${a.quellen_name ? `<span class="quelle-tag">${esc(a.quellen_name)}</span>` : ""}
@@ -167,6 +175,7 @@ artikelRoutes.get("/:id", async (c) => {
                 ${a.gemeinde_name && a.gemeinde_id ? `<span class="badge badge-gemeinde" hx-get="/api/artikel?gemeinde=${a.gemeinde_id}" hx-target="#content">${esc(a.gemeinde_name)}</span>` : ""}
             </div>
             <h2><a href="${esc(a.url)}" target="_blank">${esc(a.titel || "Ohne Titel")} ↗</a></h2>
+            ${quellentitelHtml}
             ${a.schule ? `<p class="muted">${esc(a.schule)}</p>` : ""}
             ${a.zusammenfassung ? `<h3>Zusammenfassung</h3><p>${esc(a.zusammenfassung)}</p>` : ""}
             ${a.auswirkungen ? `<h3>Mögliche Auswirkungen</h3><p>${esc(a.auswirkungen)}</p>` : ""}
