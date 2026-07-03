@@ -1,0 +1,6 @@
+curl -u admin:YOUR_PW http://localhost:3002/api/gemeinden
+curl -u admin:YOUR_PW -X POST http://localhost:3002/api/gemeinden \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Uster","kanton":"ZH","aliase":[]}'
+
+  

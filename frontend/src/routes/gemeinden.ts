@@ -11,9 +11,20 @@ const SEITEN_GROESSE = 30;
 gemeindenRoutes.get("/", async (c) => {
     const seite = Math.max(1, Number(c.req.query("seite")) || 1);
     const suche = (c.req.query("suche") || "").trim();
+    const sortierung = c.req.query("sortierung") || "name";
     const offset = (seite - 1) * SEITEN_GROESSE;
 
     const whereKlausel = suche ? sql`WHERE g.name ILIKE ${"%" + suche + "%"}` : sql``;
+
+    const orderKlausel = sortierung === "name_desc"
+        ? sql`ORDER BY g.name DESC NULLS LAST`
+        : sortierung === "artikel"
+            ? sql`ORDER BY artikel_anzahl DESC, g.name ASC`
+            : sortierung === "personen"
+                ? sql`ORDER BY personen_anzahl DESC, g.name ASC`
+                : sortierung === "ereignisse"
+                    ? sql`ORDER BY ereignisse_anzahl DESC, g.name ASC`
+                    : sql`ORDER BY g.name ASC NULLS LAST`;
 
     const gemeinden = await sql`
         SELECT g.*,
@@ -22,7 +33,7 @@ gemeindenRoutes.get("/", async (c) => {
             (SELECT COUNT(*)::int FROM newsletterj_ereignisse e WHERE e.gemeinde_id = g.id) as ereignisse_anzahl
         FROM newsletterj_gemeinden g
         ${whereKlausel}
-        ORDER BY (SELECT COUNT(*) FROM newsletterj_artikel a WHERE a.gemeinde_id = g.id) DESC
+        ${orderKlausel}
         LIMIT ${SEITEN_GROESSE} OFFSET ${offset}
     `;
 
@@ -35,26 +46,32 @@ gemeindenRoutes.get("/", async (c) => {
     const zeilen = gemeinden.map((g) => `
         <tr>
             <td><a href="#" hx-get="/api/gemeinden/${g.id}" hx-target="#content"><strong>${esc(g.name)}</strong></a></td>
-            <td class="muted">${(g.aliase as string[]).length > 0 ? esc((g.aliase as string[]).join(", ")) : "—"}</td>
             <td>${g.artikel_anzahl}</td>
             <td>${g.personen_anzahl}</td>
             <td>${g.ereignisse_anzahl}</td>
         </tr>
     `).join("");
 
-    const filterQuery = `suche=${encodeURIComponent(suche)}`;
+    const filterQuery = `suche=${encodeURIComponent(suche)}&sortierung=${sortierung}`;
 
     return c.html(`
         <div class="header-row">
             <h2>Gemeinden</h2>
             <span class="muted">${anzahl} erfasst</span>
         </div>
-        <form class="filter-bar" hx-get="/api/gemeinden" hx-target="#content" hx-trigger="submit, input delay:400ms from:input[name='suche']" hx-include="this">
+        <form class="filter-bar filter-bar-grid" hx-get="/api/gemeinden" hx-target="#content" hx-trigger="change, submit, input delay:400ms from:input[name='suche']" hx-include="this">
             <input type="search" name="suche" placeholder="Gemeinde suchen…" value="${esc(suche)}" class="filter-suche">
+            <select name="sortierung">
+                <option value="name" ${sortierung === "name" ? "selected" : ""}>Gemeinde A–Z</option>
+                <option value="name_desc" ${sortierung === "name_desc" ? "selected" : ""}>Gemeinde Z–A</option>
+                <option value="artikel" ${sortierung === "artikel" ? "selected" : ""}>Meiste Artikel</option>
+                <option value="personen" ${sortierung === "personen" ? "selected" : ""}>Meiste Personen</option>
+                <option value="ereignisse" ${sortierung === "ereignisse" ? "selected" : ""}>Meiste Ereignisse</option>
+            </select>
         </form>
         <table>
-            <thead><tr><th>Gemeinde</th><th>Aliase</th><th>Artikel</th><th>Personen</th><th>Ereignisse</th></tr></thead>
-            <tbody>${zeilen || '<tr><td colspan="5" class="empty">Keine Gemeinden gefunden</td></tr>'}</tbody>
+            <thead><tr><th>Gemeinde</th><th>Artikel</th><th>Personen</th><th>Ereignisse</th></tr></thead>
+            <tbody>${zeilen || '<tr><td colspan="4" class="empty">Keine Gemeinden gefunden</td></tr>'}</tbody>
         </table>
         ${seitenNavigation(seite, gesamtSeiten, `/api/gemeinden?${filterQuery}`)}
     `);
