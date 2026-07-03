@@ -4,8 +4,3 @@ dist/
 .claude/
 frontend/node_modules/
 frontend/.env
-
-# Docker deployment (server-specific)
-frontend/docker-compose.yml
-frontend/Dockerfile
-frontend/.dockerignore

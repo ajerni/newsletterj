@@ -1,0 +1,30 @@
+version: "3.7"
+
+services:
+  media-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: media-frontend
+    restart: always
+    ports:
+      - "8088:3001"
+    env_file:
+      - .env
+    environment:
+      PORT: "3001"
+      NODE_ENV: production
+    networks:
+      - iotnetwork
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=iotnetwork
+      - traefik.http.routers.media-frontend.rule=Host(`media.ernilabs.ch`)
+      - traefik.http.routers.media-frontend.entrypoints=websecure
+      - traefik.http.routers.media-frontend.tls=true
+      - traefik.http.routers.media-frontend.tls.certresolver=lets-encrypt
+      - traefik.http.services.media-frontend.loadbalancer.server.port=3001
+
+networks:
+  iotnetwork:
+    external: true
