@@ -152,3 +152,46 @@ So sequential runs (today, then 2 days later) do **not** double OpenRouter cost 
 - Each article is processed inside its own `try/catch` — one failure does not abort the run.
 - Failed URLs are logged, collected, and included in the newsletter as links.
 - Task `maxDuration`: 7200 s (2 hours).
+
+---
+
+## 8. Deployment (Trigger.dev)
+
+Deploy to the self-hosted Trigger.dev instance (`https://triggerdev.wineagent.ch`, profile `wineagent`):
+
+```bash
+npm run deploy
+```
+
+The CLI version is pinned in `package.json` to match `@trigger.dev/sdk`, with profile and API URL baked into the scripts — same pinned version every time, no prompt, no flags to remember. When upgrading in the future, bump both the SDK in `dependencies` and the version in the `dev`/`deploy` scripts together.
+
+Note: the deployed worker reads env vars (e.g. `OPENROUTER_MODEL`, `NEWSLETTER_TO_EMAIL`) from the Trigger.dev project settings, not from the local `.env`. After changing them there, redeploy.
+
+---
+
+## 9. Frontend (Medienspiegel Dashboard)
+
+**Stack:** Hono + HTMX, server-rendered HTML fragments, no build step. Basic auth (`admin` / `FRONTEND_PW`). Runs on port 3001.
+
+```bash
+cd frontend
+npm run dev
+```
+
+**Views** (all under `frontend/src/routes/`):
+
+| View | Features |
+|------|----------|
+| **Übersicht** (`dashboard.ts`) | Stats cards, top stories (high relevance, 14 days), category trend bars, top persons/municipalities/sources, latest events — everything clickable, jumping to the pre-filtered article list |
+| **Medienspiegel** (`artikel.ts`) | Article cards with full-text search (title, summary, snippet, school), filters for category/relevance/municipality/source/time range, pagination, article detail page with persons, organisations, and events |
+| **Personen** (`personen.ts`) | Search, municipality filter, sorting, pagination; detail page with role history, network (people from shared articles), and all mentions |
+| **Ereignisse** (`ereignisse.ts`) | Search plus category/relevance/municipality/time filters, pagination |
+| **Gemeinden** (`gemeinden.ts`) | Search; detail page per municipality with topics, persons, events, and recent articles |
+| **Läufe** (`laeufe.ts`) | Monitor run log with status and error messages |
+
+**Implementation notes:**
+
+- Filters are composed as postgres.js SQL fragments (no string concatenation) and freely combinable.
+- Dropdowns (municipality, source) are populated from actual DB contents.
+- Shared UI helpers (category list, badges, date formatting, pagination) live in `frontend/src/ui.ts`.
+- The frontend is read-only — it displays what the monitor task has collected and never writes to the database.
