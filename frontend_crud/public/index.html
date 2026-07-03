@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schulmonitor CRUD</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <h1><a href="/">Schulmonitor CRUD</a></h1>
+            <nav id="main-nav">
+                <button class="nav-btn active" hx-get="/admin/gemeinden" hx-target="#crud-main" data-key="gemeinden">Gemeinden</button>
+                <button class="nav-btn" hx-get="/admin/artikel" hx-target="#crud-main" data-key="artikel">Artikel</button>
+                <button class="nav-btn" hx-get="/admin/personen" hx-target="#crud-main" data-key="personen">Personen</button>
+                <button class="nav-btn" hx-get="/admin/personen_funktionen" hx-target="#crud-main" data-key="personen_funktionen">Personen-Funktionen</button>
+                <button class="nav-btn" hx-get="/admin/erwaehnungen" hx-target="#crud-main" data-key="erwaehnungen">Erwähnungen</button>
+                <button class="nav-btn" hx-get="/admin/organisationen" hx-target="#crud-main" data-key="organisationen">Organisationen</button>
+                <button class="nav-btn" hx-get="/admin/org_erwaehnungen" hx-target="#crud-main" data-key="org_erwaehnungen">Org-Erwähnungen</button>
+                <button class="nav-btn" hx-get="/admin/ereignisse" hx-target="#crud-main" data-key="ereignisse">Ereignisse</button>
+                <button class="nav-btn" hx-get="/admin/laeufe" hx-target="#crud-main" data-key="laeufe">Läufe</button>
+            </nav>
+        </div>
+    </header>
+    <main class="container">
+        <div id="crud-main" hx-get="/admin/gemeinden" hx-trigger="load" hx-target="this">
+            <p class="muted">Laden…</p>
+        </div>
+        <div id="crud-panel-wrap"></div>
+    </main>
+
+    <div id="confirm-overlay" class="modal-overlay" hidden>
+        <div class="modal" role="dialog" aria-modal="true">
+            <h3>Bestätigen</h3>
+            <p id="confirm-message"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn" id="confirm-cancel">Abbrechen</button>
+                <button type="button" class="btn btn-danger" id="confirm-ok">Löschen</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+
+    <script>
+        function setActiveNav(key) {
+            document.querySelectorAll('.nav-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.key === key);
+            });
+        }
+
+        function panelSchliessen() {
+            document.getElementById('crud-panel-wrap').innerHTML = '';
+        }
+
+        function toast(msg, isError) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.className = 'toast show' + (isError ? ' toast-error' : '');
+            el.hidden = false;
+            setTimeout(() => { el.hidden = true; el.classList.remove('show'); }, 3500);
+        }
+
+        document.querySelectorAll('.nav-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setActiveNav(btn.dataset.key);
+                panelSchliessen();
+            });
+        });
+
+        document.body.addEventListener('htmx:afterSwap', (e) => {
+            const path = e.detail?.pathInfo?.requestPath || '';
+            const match = path.match(/^\/admin\/([^/?]+)/);
+            if (match && e.detail.target.id === 'crud-main') {
+                setActiveNav(match[1]);
+                panelSchliessen();
+            }
+        });
+
+        document.body.addEventListener('htmx:responseError', (e) => {
+            let msg = e.detail.xhr?.responseText || 'Anfrage fehlgeschlagen';
+            try {
+                const parsed = JSON.parse(msg);
+                if (parsed.error) msg = parsed.error;
+            } catch { /* plain text */ }
+            toast('Fehler: ' + msg.slice(0, 200), true);
+        });
+
+        document.body.addEventListener('crudToast', (e) => {
+            const detail = e.detail || {};
+            toast(detail.message || 'OK', !!detail.isError);
+            if (detail.isError) return;
+            panelSchliessen();
+            if (detail.refreshUrl) {
+                htmx.ajax('GET', detail.refreshUrl, '#crud-main');
+            }
+        });
+
+        // Confirmation dialog for hx-confirm
+        (function () {
+            const overlay = document.getElementById('confirm-overlay');
+            const message = document.getElementById('confirm-message');
+            const okBtn = document.getElementById('confirm-ok');
+            const cancelBtn = document.getElementById('confirm-cancel');
+            let issueRequest = null;
+
+            function schliessen() {
+                overlay.hidden = true;
+                issueRequest = null;
+            }
+
+            document.body.addEventListener('htmx:confirm', (e) => {
+                if (!e.detail.question) return;
+                e.preventDefault();
+                message.textContent = e.detail.question;
+                issueRequest = () => e.detail.issueRequest(true);
+                overlay.hidden = false;
+                okBtn.focus();
+            });
+
+            okBtn.addEventListener('click', () => {
+                const fn = issueRequest;
+                schliessen();
+                if (fn) fn();
+            });
+            cancelBtn.addEventListener('click', schliessen);
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) schliessen(); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.hidden) schliessen(); });
+        })();
+    </script>
+</body>
+</html>

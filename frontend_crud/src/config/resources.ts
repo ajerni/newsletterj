@@ -12,12 +12,23 @@ export interface FieldConfig {
     fk?: { resource: string; labelField?: string };
 }
 
+export interface ListSortConfig {
+    param: string;
+    column: string;
+    default: string;
+    options: Array<{ value: string; label: string }>;
+}
+
 export interface ResourceConfig {
     key: string;
     label: string;
     table: string;
     orderBy: string;
     fields: FieldConfig[];
+    /** Select fields excluded from the list filter bar */
+    filterExclude?: string[];
+    /** Optional date/order toggle in the filter bar */
+    listSort?: ListSortConfig;
 }
 
 const RELEVANZ = [
@@ -55,7 +66,17 @@ export const RESOURCES: Record<string, ResourceConfig> = {
         key: "artikel",
         label: "Artikel",
         table: "newsletterj_artikel",
-        orderBy: "gesucht_am DESC",
+        orderBy: "veroeffentlicht_am DESC NULLS LAST",
+        filterExclude: ["gemeinde_id"],
+        listSort: {
+            param: "datum",
+            column: "veroeffentlicht_am",
+            default: "neueste",
+            options: [
+                { value: "neueste", label: "Neueste zuerst" },
+                { value: "aelteste", label: "Älteste zuerst" },
+            ],
+        },
         fields: [
             { name: "id", label: "ID", type: "number", readonly: true },
             { name: "url", label: "URL", type: "text", required: true },
@@ -210,4 +231,23 @@ export function editableFields(config: ResourceConfig): FieldConfig[] {
 
 export function listFields(config: ResourceConfig): FieldConfig[] {
     return config.fields.filter((f) => !f.hideInList).slice(0, 8);
+}
+
+export function searchableFieldNames(config: ResourceConfig): string[] {
+    return config.fields
+        .filter((f) => (f.type === "text" || f.type === "textarea") && !f.readonly)
+        .map((f) => f.name);
+}
+
+export function filterFields(config: ResourceConfig): FieldConfig[] {
+    const exclude = new Set(config.filterExclude ?? []);
+    return config.fields.filter((f) => f.type === "select" && f.name !== "id" && !exclude.has(f.name));
+}
+
+export function resolveListOrderBy(config: ResourceConfig, sort?: string): string {
+    if (!config.listSort) return config.orderBy;
+    const value = sort || config.listSort.default;
+    if (value === "aelteste") return `${config.listSort.column} ASC NULLS LAST`;
+    if (value === "neueste") return `${config.listSort.column} DESC NULLS LAST`;
+    return config.orderBy;
 }

@@ -1,5 +1,5 @@
-import { Hono, type Context } from "hono";
-import { resourceConfig, resourceKeys } from "../config/resources.js";
+import { Hono } from "hono";
+import { resourceConfig, resourceKeys, filterFields } from "../config/resources.js";
 import {
     listRecords,
     getRecord,
@@ -7,21 +7,25 @@ import {
     updateRecord,
     deleteRecord,
 } from "../lib/crud.js";
-
-async function parseBody(c: Context): Promise<Record<string, unknown>> {
-    const contentType = c.req.header("content-type") ?? "";
-    if (contentType.includes("application/json")) {
-        return await c.req.json<Record<string, unknown>>();
-    }
-    const form = await c.req.parseBody();
-    const body: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(form)) {
-        body[key] = value;
-    }
-    return body;
-}
+import { parseBody } from "../lib/parse-body.js";
 
 export const apiRoutes = new Hono();
+
+function filterFromQuery(c: { req: { query: (k: string) => string | undefined } }, key: string) {
+    const config = resourceConfig(key);
+    const filter: Record<string, string> = {};
+    for (const f of filterFields(config)) {
+        const v = c.req.query(f.name);
+        if (v) filter[f.name] = v;
+    }
+    return filter;
+}
+
+function sortFromQuery(c: { req: { query: (k: string) => string | undefined } }, key: string) {
+    const config = resourceConfig(key);
+    if (!config.listSort) return undefined;
+    return c.req.query(config.listSort.param) || config.listSort.default;
+}
 
 apiRoutes.get("/", (c) => {
     return c.json({
@@ -42,7 +46,12 @@ for (const key of resourceKeys()) {
     routes.get("/", async (c) => {
         const seite = Math.max(1, Number(c.req.query("seite")) || 1);
         const limit = Math.min(200, Math.max(1, Number(c.req.query("limit")) || 50));
-        const { rows, total } = await listRecords(key, seite, limit);
+        const suche = (c.req.query("suche") || "").trim();
+        const { rows, total } = await listRecords(key, {
+            seite, limit, suche,
+            filter: filterFromQuery(c, key),
+            sort: sortFromQuery(c, key),
+        });
         return c.json({ data: rows, total, seite, limit, pages: Math.ceil(total / limit) });
     });
 
@@ -81,8 +90,9 @@ for (const key of resourceKeys()) {
             await deleteRecord(key, id);
             return c.json({ ok: true });
         } catch (err) {
-            const status = err instanceof Error && err.message.includes("nicht gefunden") ? 404 : 400;
-            return c.json({ error: err instanceof Error ? err.message : "Fehler" }, status);
+            const msg = err instanceof Error ? err.message : "Fehler";
+            const status = msg.includes("nicht gefunden") ? 404 : msg.startsWith("Löschen nicht möglich") ? 409 : 400;
+            return c.json({ error: msg }, status);
         }
     });
 

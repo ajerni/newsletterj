@@ -1,6 +1,7 @@
 import sql from "../db.js";
 import type { FieldConfig, ResourceConfig } from "../config/resources.js";
-import { editableFields, resourceConfig } from "../config/resources.js";
+import { editableFields, resolveListOrderBy, resourceConfig, searchableFieldNames } from "../config/resources.js";
+import { assertDeletable, friendlyDbError } from "./db-errors.js";
 
 const TABLE_SQL: Record<string, ReturnType<typeof sql.unsafe>> = {
     newsletterj_gemeinden: sql.unsafe("newsletterj_gemeinden"),
@@ -20,6 +21,8 @@ const ORDER_SQL: Record<string, ReturnType<typeof sql.unsafe>> = {
     "id DESC": sql.unsafe("id DESC"),
     "erstellt_am DESC": sql.unsafe("erstellt_am DESC"),
     "gestartet_am DESC": sql.unsafe("gestartet_am DESC"),
+    "veroeffentlicht_am DESC NULLS LAST": sql.unsafe("veroeffentlicht_am DESC NULLS LAST"),
+    "veroeffentlicht_am ASC NULLS LAST": sql.unsafe("veroeffentlicht_am ASC NULLS LAST"),
 };
 
 function tableRef(table: string) {
@@ -105,27 +108,74 @@ export function formatCellValue(value: unknown): string {
 }
 
 export function recordToFormValue(field: FieldConfig, value: unknown): string {
-    if (value === null || value === undefined) return "";
+    if (value === null || value === undefined) {
+        if (field.name === "kanton") return "ZH";
+        if (field.name === "relevanz") return "mittel";
+        if (field.name === "status") return "gestartet";
+        if (field.name === "artikel_anzahl") return "0";
+        return "";
+    }
     if (field.type === "array" && Array.isArray(value)) return value.join(", ");
     if (field.type === "json" && typeof value === "object") return JSON.stringify(value, null, 2);
     if (value instanceof Date) return value.toISOString().slice(0, 16);
     return String(value);
 }
 
-export async function listRecords(key: string, seite = 1, limit = 50): Promise<{ rows: Record<string, unknown>[]; total: number }> {
+export interface ListQuery {
+    seite?: number;
+    limit?: number;
+    suche?: string;
+    filter?: Record<string, string>;
+    sort?: string;
+}
+
+export async function listRecords(key: string, query: ListQuery = {}): Promise<{ rows: Record<string, unknown>[]; total: number }> {
     const config = resourceConfig(key);
+    const seite = query.seite ?? 1;
+    const limit = query.limit ?? 30;
     const offset = (seite - 1) * limit;
     const table = tableRef(config.table);
-    const order = orderRef(config.orderBy);
+    const order = orderRef(resolveListOrderBy(config, query.sort));
+
+    const bedingungen: ReturnType<typeof sql>[] = [];
+
+    const suche = (query.suche || "").trim();
+    if (suche) {
+        const pattern = `%${suche}%`;
+        const textCols = searchableFieldNames(config);
+        const teile = textCols.map((col) => sql`${sql.unsafe(col)} ILIKE ${pattern}`);
+        if (/^\d+$/.test(suche)) {
+            teile.push(sql`id = ${Number(suche)}`);
+        }
+        if (teile.length === 1) {
+            bedingungen.push(sql`(${teile[0]})`);
+        } else if (teile.length > 1) {
+            const orKlausel = teile.slice(1).reduce((acc, teil) => sql`${acc} OR ${teil}`, teile[0]);
+            bedingungen.push(sql`(${orKlausel})`);
+        }
+    }
+
+    for (const [fieldName, rawValue] of Object.entries(query.filter || {})) {
+        if (!rawValue) continue;
+        const field = fieldAllowed(config, fieldName);
+        if (!field || field.type !== "select") continue;
+        const wert = field.type === "select" && field.fk ? Number(rawValue) : rawValue;
+        bedingungen.push(sql`${sql.unsafe(fieldName)} = ${wert}`);
+    }
+
+    const whereKlausel = bedingungen.length
+        ? bedingungen.slice(1).reduce((acc, b) => sql`${acc} AND ${b}`, sql`WHERE ${bedingungen[0]}`)
+        : sql``;
 
     const rows = await sql`
         SELECT * FROM ${table}
+        ${whereKlausel}
         ORDER BY ${order}
         LIMIT ${limit} OFFSET ${offset}
     ` as Record<string, unknown>[];
 
     const [{ count }] = await sql`
-        SELECT COUNT(*)::int as count FROM ${table}
+        SELECT COUNT(*)::int as count FROM ${table} ${whereKlausel}
     ` as [{ count: number }];
 
     return { rows, total: count };
@@ -176,8 +226,14 @@ export async function updateRecord(key: string, id: number, body: Record<string,
 export async function deleteRecord(key: string, id: number): Promise<void> {
     const config = resourceConfig(key);
     const table = tableRef(config.table);
-    const result = await sql`DELETE FROM ${table} WHERE id = ${id}`;
-    if (result.count === 0) throw new Error("Datensatz nicht gefunden");
+    await assertDeletable(key, id);
+    try {
+        const result = await sql`DELETE FROM ${table} WHERE id = ${id}`;
+        if (result.count === 0) throw new Error("Datensatz nicht gefunden");
+    } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Löschen nicht möglich")) throw err;
+        throw new Error(friendlyDbError(err));
+    }
 }
 
 /** FK dropdown options: id + label from related table */
