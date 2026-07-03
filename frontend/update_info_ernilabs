@@ -1,0 +1,4 @@
+cd /usr/local/sbin/newsletterj
+git pull
+cd frontend
+docker compose up -d --build

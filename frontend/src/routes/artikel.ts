@@ -100,7 +100,7 @@ artikelRoutes.get("/", async (c) => {
                 <option value="neueste" ${sortierung === "neueste" ? "selected" : ""}>Neueste zuerst</option>
                 <option value="aelteste" ${sortierung === "aelteste" ? "selected" : ""}>Älteste zuerst</option>
             </select>
-            ${filterAktiv ? `<button type="button" class="btn btn-sm" hx-get="/api/artikel" hx-target="#content">Filter zurücksetzen</button>` : ""}
+            ${filterAktiv ? `<button type="button" class="btn btn-sm" hx-get="/api/artikel" hx-target="#content" hx-params="none">Filter zurücksetzen</button>` : ""}
         </form>
         <div class="artikel-liste">
             ${karten || '<p class="empty">Keine Artikel gefunden</p>'}
