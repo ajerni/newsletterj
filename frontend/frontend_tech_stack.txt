@@ -1,0 +1,89 @@
+The frontend is a server-rendered dashboard with a minimal client-side layer. No React, Vue, or build step for the UI.
+
+Architecture pattern
+Hono + HTMX + HTML fragments — sometimes called a “hypermedia” or “HTML-over-the-wire” app:
+
+One static shell page (public/index.html) loads once
+Navigation and filtering swap HTML into #content via HTMX
+The server returns partial HTML from /api/* routes, not JSON for a SPA
+Browser (index.html + HTMX + CSS)
+    ↕ hx-get / hx-target
+Hono server (TypeScript)
+    ↕ postgres.js tagged templates
+PostgreSQL (newsletterj_* tables)
+Backend / runtime
+Layer	Technology
+Runtime
+Node.js 20 (Alpine in Docker)
+Language
+TypeScript 5 (strict, ESM via "type": "module")
+Web framework
+Hono 4 with @hono/node-server
+Dev runner
+tsx (tsx watch in dev, tsx src/index.ts in prod)
+Config
+dotenv (.env: DATABASE_URL, FRONTEND_PW, PORT)
+The entry point is src/index.ts: Hono app, auth, static files, and route mounting.
+
+Database
+Layer	Technology
+DB
+PostgreSQL (shared with the monitor backend)
+Client
+postgres (postgres.js) — tagged template SQL, no ORM
+Connection
+src/db.ts → postgres(process.env.DATABASE_URL!)
+Routes query newsletterj_artikel, newsletterj_personen, newsletterj_ereignisse, etc. directly.
+
+Frontend / UI
+Layer	Technology
+Interactivity
+HTMX 2.0.4 (CDN from unpkg)
+Styling
+Plain CSS (public/styles.css) with CSS variables, light/dark via data-theme
+JS
+Small inline scripts in index.html (nav highlight, theme toggle, custom confirm dialog)
+Templates
+Server-side HTML strings in route handlers (src/routes/*.ts)
+Helpers
+src/html.ts (escape), src/ui.ts (badges, pagination, option lists)
+No bundler (Vite/Webpack), no component framework, no Tailwind.
+
+Auth
+Cookie-based session (not browser basic auth):
+
+GET/POST /login — styled login form
+POST /logout — clears session cookie
+HttpOnly cookie checked by middleware before /api/* and the app shell
+Credentials: admin + FRONTEND_PW
+Deployment
+Layer	Technology
+Container
+Docker multi-stage build (node:20-alpine)
+Orchestration
+Docker Compose (media-frontend service)
+Reverse proxy
+Traefik (TLS via Let’s Encrypt, host media.ernilabs.com)
+Port
+8088:3001 internally, Traefik routes HTTPS
+TypeScript is not compiled to JS in Docker — production runs source via tsx.
+
+Project layout
+frontend/
+├── src/
+│   ├── index.ts          # Hono app, auth, static serving
+│   ├── db.ts             # postgres.js client
+│   ├── html.ts           # HTML escaping
+│   ├── ui.ts             # shared UI helpers
+│   └── routes/           # dashboard, artikel, personen, …
+├── public/
+│   ├── index.html        # app shell + HTMX
+│   └── styles.css
+├── Dockerfile
+└── docker-compose.yml
+What it is not
+Not a SPA (no React/Vue/Svelte)
+No API-only JSON frontend — /api/* returns HTML fragments for HTMX
+No ORM, no GraphQL, no Redis/cache layer
+No test framework in package.json
+Overall: a lightweight TypeScript monolith optimized for a read-heavy admin/dashboard with fast iteration and little frontend tooling.
