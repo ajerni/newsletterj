@@ -7,7 +7,15 @@ export const laeufeRoutes = new Hono();
 
 const SEITEN_GROESSE = 30;
 
-async function laeufeAnsicht(seite = 1): Promise<string> {
+const MONITOR_WEBHOOK_URL =
+    process.env.MONITOR_WEBHOOK_URL ??
+    "https://webhooks.wineagent.ch/api/webhooks/production/schulmonitor-ausfuehren";
+const MONITOR_WEBHOOK_SECRET = process.env.MONITOR_WEBHOOK_SECRET ?? "your-secret";
+
+async function laeufeAnsicht(
+    seite = 1,
+    hinweis?: { typ: "success" | "error"; text: string }
+): Promise<string> {
     const offset = (seite - 1) * SEITEN_GROESSE;
 
     const laeufe = await sql`
@@ -37,7 +45,15 @@ async function laeufeAnsicht(seite = 1): Promise<string> {
 
     return `
         <div class="header-row">
-            <h2>Läufe</h2>
+            <div class="header-row-title">
+                <h2>Läufe</h2>
+                <button type="button" class="btn btn-sm btn-primary"
+                    hx-post="/api/laeufe/run"
+                    hx-target="#content"
+                    hx-swap="innerHTML">
+                    Run
+                </button>
+            </div>
             <div class="header-row-actions">
                 <span class="muted">${anzahl} Einträge</span>
                 ${anzahl > 0 ? `
@@ -49,6 +65,7 @@ async function laeufeAnsicht(seite = 1): Promise<string> {
                 </button>` : ""}
             </div>
         </div>
+        ${hinweis ? `<div class="flash flash-${hinweis.typ}" role="status">${esc(hinweis.text)}</div>` : ""}
         <table>
             <thead><tr><th>Status</th><th>Gefunden</th><th>Neu</th><th>Personen (neu/akt.)</th><th>Ereignisse</th><th>Start</th><th>Ende</th><th>Fehler</th></tr></thead>
             <tbody>${zeilen || '<tr><td colspan="8" class="empty">Noch keine Läufe</td></tr>'}</tbody>
@@ -60,6 +77,43 @@ async function laeufeAnsicht(seite = 1): Promise<string> {
 laeufeRoutes.get("/", async (c) => {
     const seite = Math.max(1, Number(c.req.query("seite")) || 1);
     return c.html(await laeufeAnsicht(seite));
+});
+
+laeufeRoutes.post("/run", async (c) => {
+    try {
+        const antwort = await fetch(MONITOR_WEBHOOK_URL, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Webhook-Secret": MONITOR_WEBHOOK_SECRET,
+            },
+            body: "{}",
+        });
+
+        if (!antwort.ok) {
+            const detail = (await antwort.text()).slice(0, 200);
+            return c.html(
+                await laeufeAnsicht(1, {
+                    typ: "error",
+                    text: `Webhook fehlgeschlagen (${antwort.status}): ${detail || antwort.statusText}`,
+                }),
+                502
+            );
+        }
+
+        return c.html(
+            await laeufeAnsicht(1, {
+                typ: "success",
+                text: "Monitor-Lauf wurde ausgelöst. Der neue Eintrag erscheint in der Liste, sobald der Lauf gestartet ist.",
+            })
+        );
+    } catch (fehler) {
+        const meldung = fehler instanceof Error ? fehler.message : "Unbekannter Fehler";
+        return c.html(
+            await laeufeAnsicht(1, { typ: "error", text: `Webhook-Aufruf fehlgeschlagen: ${meldung}` }),
+            502
+        );
+    }
 });
 
 laeufeRoutes.delete("/", async (c) => {
