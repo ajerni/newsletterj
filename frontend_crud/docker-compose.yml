@@ -1,0 +1,30 @@
+version: "3.7"
+
+services:
+  mediacrud-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mediacrud-ui
+    restart: always
+    ports:
+      - "8086:3002"
+    env_file:
+      - .env
+    environment:
+      PORT: "3002"
+      NODE_ENV: production
+    networks:
+      - alnetwork
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=alnetwork
+      - traefik.http.routers.mediacrud-ui.rule=Host(`mediacrud.winespirit.ch`)
+      - traefik.http.routers.mediacrud-ui.entrypoints=websecure
+      - traefik.http.routers.mediacrud-ui.tls=true
+      - traefik.http.routers.mediacrud-ui.tls.certresolver=lets-encrypt
+      - traefik.http.services.mediacrud-ui.loadbalancer.server.port=3002
+
+networks:
+  alnetwork:
+    external: true
