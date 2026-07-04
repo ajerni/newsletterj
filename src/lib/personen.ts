@@ -166,7 +166,7 @@ async function kiGemeindeAbgleich(
 Neuer Name: "${name}"
 
 Bekannte Gemeinden:
-${bekannteGemeinden.map((g) => `- ID ${g.id}: ${g.name} (Aliase: ${g.aliase.join(", ") || "keine"})`).join("\n")}
+${bekannteGemeinden.map((g) => `- ID ${g.id}: ${g.name || "(kein Name)"} (Aliase: ${(g.aliase ?? []).join(", ") || "keine"})`).join("\n")}
 
 Antworte mit JSON: {"uebereinstimmung_id": <id oder null>}
 Nur eine Übereinstimmung melden wenn es sich eindeutig um dieselbe Gemeinde handelt (z.B. "Stadt Zürich" = "Zürich", "Gemeinde Uster" = "Uster").`;

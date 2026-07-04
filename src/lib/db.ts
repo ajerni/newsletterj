@@ -27,7 +27,15 @@ export async function gemeindeErstellen(name: string, aliase: string[] = []): Pr
 }
 
 export async function alleGemeindenLaden(): Promise<Array<{ id: number; name: string; aliase: string[] }>> {
-    return await sql`SELECT id, name, aliase FROM newsletterj_gemeinden ORDER BY name` as any;
+    const rows = await sql`
+        SELECT id, name, aliase FROM newsletterj_gemeinden ORDER BY name
+    ` as Array<{ id: number; name: string | null; aliase: string[] | null }>;
+
+    return rows.map((r) => ({
+        id: r.id,
+        name: r.name ?? "",
+        aliase: r.aliase ?? [],
+    }));
 }
 
 export async function gemeindeAliasHinzufuegen(id: number, alias: string): Promise<void> {
