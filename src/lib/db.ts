@@ -8,19 +8,38 @@ export default sql;
 
 // --- Gemeinden ---
 
+/** Returns trimmed name or null if missing/blank. */
+export function normalisiereGemeindeName(name: string | null | undefined): string | null {
+    if (typeof name !== "string") return null;
+    const trimmed = name.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function gemeindeAufloesen(name: string): Promise<number | null> {
+    const gueltigerName = normalisiereGemeindeName(name);
+    if (!gueltigerName) return null;
+
     const [treffer] = await sql`
         SELECT id FROM newsletterj_gemeinden
-        WHERE name = ${name} OR ${name} = ANY(aliase)
+        WHERE name = ${gueltigerName} OR ${gueltigerName} = ANY(COALESCE(aliase, '{}'))
         LIMIT 1
     `;
     return treffer?.id ?? null;
 }
 
 export async function gemeindeErstellen(name: string, aliase: string[] = []): Promise<number> {
+    const gueltigerName = normalisiereGemeindeName(name);
+    if (!gueltigerName) {
+        throw new Error("Gemeinde-Name fehlt oder ist leer");
+    }
+
+    const sichereAliase = Array.isArray(aliase)
+        ? aliase.filter((a) => typeof a === "string" && a.trim() !== "")
+        : [];
+
     const [row] = await sql`
         INSERT INTO newsletterj_gemeinden (name, aliase)
-        VALUES (${name}, ${aliase})
+        VALUES (${gueltigerName}, ${sichereAliase})
         RETURNING id
     `;
     return row.id;
@@ -39,10 +58,13 @@ export async function alleGemeindenLaden(): Promise<Array<{ id: number; name: st
 }
 
 export async function gemeindeAliasHinzufuegen(id: number, alias: string): Promise<void> {
+    const gueltigerAlias = normalisiereGemeindeName(alias);
+    if (!gueltigerAlias) return;
+
     await sql`
         UPDATE newsletterj_gemeinden
-        SET aliase = array_append(aliase, ${alias})
-        WHERE id = ${id} AND NOT (${alias} = ANY(aliase))
+        SET aliase = array_append(COALESCE(aliase, '{}'), ${gueltigerAlias})
+        WHERE id = ${id} AND NOT (${gueltigerAlias} = ANY(COALESCE(aliase, '{}')))
     `;
 }
 

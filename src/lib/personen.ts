@@ -7,6 +7,7 @@ import {
     gemeindeErstellen,
     alleGemeindenLaden,
     gemeindeAliasHinzufuegen,
+    normalisiereGemeindeName,
 } from "./db.js";
 import type { ArtikelExtraktion } from "./typen.js";
 import { llmJsonParsen, llmInhaltExtrahieren } from "./json.js";
@@ -117,23 +118,24 @@ export async function personenAufloesen(
 }
 
 export async function gemeindeIdAufloesen(name: string): Promise<number | null> {
-    // Direct match first
-    const direktId = await gemeindeAufloesen(name);
+    const gueltigerName = normalisiereGemeindeName(name);
+    if (!gueltigerName) return null;
+
+    const direktId = await gemeindeAufloesen(gueltigerName);
     if (direktId) return direktId;
 
-    // AI match against known municipalities
-    const alleGemeinden = await alleGemeindenLaden();
+    const alleGemeinden = (await alleGemeindenLaden()).filter((g) => g.name.trim() !== "");
     if (alleGemeinden.length === 0) {
-        return await gemeindeErstellen(name);
+        return await gemeindeErstellen(gueltigerName);
     }
 
-    const uebereinstimmungId = await kiGemeindeAbgleich(name, alleGemeinden);
+    const uebereinstimmungId = await kiGemeindeAbgleich(gueltigerName, alleGemeinden);
     if (uebereinstimmungId) {
-        await gemeindeAliasHinzufuegen(uebereinstimmungId, name);
+        await gemeindeAliasHinzufuegen(uebereinstimmungId, gueltigerName);
         return uebereinstimmungId;
     }
 
-    return await gemeindeErstellen(name);
+    return await gemeindeErstellen(gueltigerName);
 }
 
 async function kiPersonAbgleich(
@@ -161,15 +163,20 @@ async function kiGemeindeAbgleich(
     name: string,
     bekannteGemeinden: Array<{ id: number; name: string; aliase: string[] }>
 ): Promise<number | null> {
+    const gueltigeGemeinden = bekannteGemeinden.filter((g) => g.name.trim() !== "");
+    if (gueltigeGemeinden.length === 0) return null;
+
     const prompt = `Bestimme ob der folgende Ortsname einer bekannten Gemeinde im Kanton Zürich entspricht.
 
 Neuer Name: "${name}"
 
 Bekannte Gemeinden:
-${bekannteGemeinden.map((g) => `- ID ${g.id}: ${g.name || "(kein Name)"} (Aliase: ${(g.aliase ?? []).join(", ") || "keine"})`).join("\n")}
+${gueltigeGemeinden.map((g) => `- ID ${g.id}: ${g.name} (Aliase: ${(g.aliase ?? []).join(", ") || "keine"})`).join("\n")}
 
 Antworte mit JSON: {"uebereinstimmung_id": <id oder null>}
 Nur eine Übereinstimmung melden wenn es sich eindeutig um dieselbe Gemeinde handelt (z.B. "Stadt Zürich" = "Zürich", "Gemeinde Uster" = "Uster").`;
 
-    return kiAbgleichAnfrage(prompt);
+    const id = await kiAbgleichAnfrage(prompt);
+    if (id === null) return null;
+    return gueltigeGemeinden.some((g) => g.id === id) ? id : null;
 }

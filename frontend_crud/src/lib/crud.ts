@@ -43,10 +43,16 @@ function fieldAllowed(config: ResourceConfig, name: string): FieldConfig | undef
 
 export function parseFieldInput(field: FieldConfig, raw: unknown): unknown {
     if (raw === undefined) return undefined;
-    if (raw === null) return null;
+    if (raw === null) {
+        if (field.required) throw new Error(`${field.label} ist erforderlich`);
+        return null;
+    }
 
     const text = typeof raw === "string" ? raw.trim() : String(raw);
 
+    if (text === "" && field.required) {
+        throw new Error(`${field.label} ist erforderlich`);
+    }
     if (text === "" && !field.required) return null;
 
     switch (field.type) {
@@ -195,6 +201,10 @@ export async function createRecord(key: string, body: Record<string, unknown>): 
     const data = bodyToRecord(config, body, false);
     if (Object.keys(data).length === 0) throw new Error("Keine Felder zum Erstellen");
 
+    if (key === "gemeinden" && !Array.isArray(data.aliase)) {
+        data.aliase = [];
+    }
+
     const table = tableRef(config.table);
     const rows = await sql`
         INSERT INTO ${table} ${sql(data)}
@@ -212,6 +222,13 @@ export async function updateRecord(key: string, id: number, body: Record<string,
 
     for (const name of Object.keys(data)) {
         if (!fieldAllowed(config, name)) throw new Error(`Feld nicht erlaubt: ${name}`);
+    }
+
+    if (key === "gemeinden" && "name" in data && data.name === null) {
+        throw new Error("Name ist erforderlich");
+    }
+    if (key === "gemeinden" && "aliase" in data && data.aliase === null) {
+        data.aliase = [];
     }
 
     const table = tableRef(config.table);
