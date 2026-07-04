@@ -1,5 +1,6 @@
 export const SUCHANFRAGEN: string[] = [
     "Affoltern Anzeiger Schule",
+    "Sekundarschule Mettmenstetten (Sek Mättmi)",
     "Volksschule Kanton Zürich",
     "Schulpflege Zürich",
     "Schulleitung Kanton Zürich Konflikt",
