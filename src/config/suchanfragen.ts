@@ -1,4 +1,5 @@
 export const SUCHANFRAGEN: string[] = [
+    "Affoltern Anzeiger Schule",
     "Volksschule Kanton Zürich",
     "Schulpflege Zürich",
     "Schulleitung Kanton Zürich Konflikt",
@@ -9,7 +10,7 @@ export const SUCHANFRAGEN: string[] = [
     "Primarschule Zürich",
     "Sekundarschule Zürich",
     "Sonderschule Zürich",
-    "Schulqualität Zürich Evaluation",
+    "Schulqualität Zürich",
     "Lehrpersonen Zürich Kündigung",
     "Schule Zürich Gewalt Mobbing",
     "Schule Zürich Digitalisierung",

@@ -21,7 +21,6 @@ export const MEDIEN_QUELLEN: MedienQuelle[] = [
     { name: "Aargauer Zeitung", domain: "aargauerzeitung.ch", typ: "zeitung", sprache: "de" },
     // Rundfunk
     { name: "SRF", domain: "srf.ch", typ: "rundfunk", sprache: "de" },
-    { name: "RTS", domain: "rts.ch", typ: "rundfunk", sprache: "fr" },
     // Online
     { name: "Blick", domain: "blick.ch", typ: "online", sprache: "de" },
     { name: "Watson", domain: "watson.ch", typ: "online", sprache: "de" },
