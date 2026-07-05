@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import sql from "../db.js";
 import { esc } from "../html.js";
-import { kategorieLabel, datumRelativ, relevanzBadge, kategorieBadge } from "../ui.js";
+import { kategorieLabel, datumRelativ } from "../ui.js";
 import { artikelKarte } from "./artikel.js";
 
 export const dashboardRoutes = new Hono();
@@ -15,7 +15,6 @@ dashboardRoutes.get("/", async (c) => {
         FROM newsletterj_artikel
     `;
     const [personenStats] = await sql`SELECT COUNT(*)::int as gesamt FROM newsletterj_personen`;
-    const [ereignisseStats] = await sql`SELECT COUNT(*)::int as gesamt FROM newsletterj_ereignisse`;
     const [faelleStats] = await sql`
         SELECT COUNT(*)::int as gesamt,
             COUNT(*) FILTER (WHERE status = 'aktiv')::int as aktiv
@@ -73,13 +72,6 @@ dashboardRoutes.get("/", async (c) => {
         GROUP BY quellen_name ORDER BY anzahl DESC LIMIT 8
     `;
 
-    const letzteEreignisse = await sql`
-        SELECT e.typ, e.titel, e.relevanz, e.erstellt_am, e.artikel_id, g.name as gemeinde_name
-        FROM newsletterj_ereignisse e
-        LEFT JOIN newsletterj_gemeinden g ON g.id = e.gemeinde_id
-        ORDER BY e.erstellt_am DESC LIMIT 6
-    `;
-
     const maxKategorieAnzahl = topKategorien[0]?.anzahl || 1;
     const kategorienHtml = topKategorien.map((k) => `
         <div class="trend-row" hx-get="/api/artikel?kategorie=${esc(k.kategorie)}" hx-target="#content">
@@ -113,15 +105,6 @@ dashboardRoutes.get("/", async (c) => {
         </li>
     `).join("");
 
-    const ereignisseHtml = letzteEreignisse.map((e) => `
-        <li>
-            <span class="badge">${esc(kategorieLabel(e.typ))}</span>
-            <a href="#" hx-get="/api/artikel/${e.artikel_id}" hx-target="#content">${esc(e.titel)}</a>
-            ${relevanzBadge(e.relevanz)}
-            <span class="muted">${e.gemeinde_name ? esc(e.gemeinde_name) + " — " : ""}${datumRelativ(e.erstellt_am)}</span>
-        </li>
-    `).join("");
-
     const topStoriesHtml = topStories.map((a) => artikelKarte(a)).join("");
 
     const faelleHtml = aktiveFaelle.map((f) => `
@@ -142,7 +125,6 @@ dashboardRoutes.get("/", async (c) => {
             <div class="stat-card" hx-get="/api/artikel?tage=7" hx-target="#content"><div class="stat-value">${artikelStats.diese_woche}</div><div class="stat-label">Diese Woche</div></div>
             <div class="stat-card" hx-get="/api/artikel?relevanz=hoch&tage=30" hx-target="#content"><div class="stat-value">${artikelStats.hoch_relevant}</div><div class="stat-label">Hoch relevant</div></div>
             <div class="stat-card" hx-get="/api/personen" hx-target="#content"><div class="stat-value">${personenStats.gesamt}</div><div class="stat-label">Personen</div></div>
-            <div class="stat-card" hx-get="/api/ereignisse" hx-target="#content"><div class="stat-value">${ereignisseStats.gesamt}</div><div class="stat-label">Ereignisse</div></div>
             <div class="stat-card" hx-get="/api/faelle?status=aktiv" hx-target="#content"><div class="stat-value">${faelleStats.aktiv}</div><div class="stat-label">Aktive Fälle</div></div>
         </div>
 
