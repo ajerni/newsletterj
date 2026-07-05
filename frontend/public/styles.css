@@ -127,14 +127,21 @@ a {
 header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
-    padding: 16px 0;
+    padding: 12px 0 10px;
     position: sticky;
     top: 0;
     z-index: 100;
     transition: background-color 0.2s, border-color 0.2s;
 }
 
-header .container {
+header .header-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 1100px;
+}
+
+.header-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -146,6 +153,7 @@ header h1 {
     font-weight: 600;
     color: var(--color-text-strong);
     flex-shrink: 0;
+    margin: 0;
 }
 
 .site-home {
@@ -164,34 +172,45 @@ header h1 {
     color: var(--color-accent);
 }
 
-.header-actions {
+.header-utilities {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    gap: 8px;
+    flex-shrink: 0;
 }
 
-nav {
+.header-nav {
     display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    padding-bottom: 2px;
+}
+
+.header-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .logout-form {
     display: inline-flex;
+    margin: 0;
 }
 
 .nav-btn {
     background: none;
     border: none;
-    padding: 8px 16px;
+    padding: 7px 12px;
     border-radius: 6px;
     cursor: pointer;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     color: var(--color-text-muted);
     transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .nav-btn:hover {
@@ -1289,9 +1308,9 @@ td.actions {
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }
-    header .container { flex-direction: column; align-items: stretch; }
-    .header-actions { justify-content: space-between; }
-    nav { flex-wrap: wrap; }
+    header { padding: 10px 0 8px; }
+    .header-nav { margin: 0 -16px; padding: 0 16px 2px; }
+    .nav-btn { padding: 7px 10px; font-size: 12px; }
     .inline-form { flex-direction: column; align-items: stretch; }
     .section-row { grid-template-columns: 1fr; }
     table { font-size: 13px; }

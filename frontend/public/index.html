@@ -19,30 +19,32 @@
 </head>
 <body>
     <header>
-        <div class="container">
-            <h1>
-                <button type="button" class="site-home"
-                    hx-get="/api/dashboard" hx-target="#content"
-                    onclick="setActive(document.getElementById('nav-uebersicht'))">
-                    Schulmonitor ZH
-                </button>
-            </h1>
-            <div class="header-actions">
-                <nav>
-                    <button id="nav-uebersicht" class="nav-btn active" hx-get="/api/dashboard" hx-target="#content" onclick="setActive(this)">Übersicht</button>
-                    <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Artikel</button>
-                    <button class="nav-btn" hx-get="/api/personen" hx-target="#content" onclick="setActive(this)">Personen</button>
-                    <button class="nav-btn" hx-get="/api/ereignisse" hx-target="#content" onclick="setActive(this)">Ereignisse</button>
-                    <button class="nav-btn" hx-get="/api/faelle" hx-target="#content" onclick="setActive(this)">Fälle</button>
-                    <button class="nav-btn" hx-get="/api/suche" hx-target="#content" onclick="setActive(this)">Suche</button>
-                    <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
-                    <button class="nav-btn" hx-get="/api/laeufe" hx-target="#content" onclick="setActive(this)">Läufe</button>
-                </nav>
-                <form method="post" action="/logout" class="logout-form">
-                    <button type="submit" class="nav-btn logout-btn">Logout</button>
-                </form>
-                <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Darstellung wechseln" title="Hell / Dunkel">☀</button>
+        <div class="container header-inner">
+            <div class="header-top">
+                <h1>
+                    <button type="button" class="site-home"
+                        hx-get="/api/dashboard" hx-target="#content"
+                        onclick="setActive(document.getElementById('nav-uebersicht'))">
+                        Schulmonitor ZH
+                    </button>
+                </h1>
+                <div class="header-utilities">
+                    <form method="post" action="/logout" class="logout-form">
+                        <button type="submit" class="nav-btn logout-btn">Logout</button>
+                    </form>
+                    <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Darstellung wechseln" title="Hell / Dunkel">☀</button>
+                </div>
             </div>
+            <nav class="header-nav" aria-label="Hauptnavigation">
+                <button id="nav-uebersicht" class="nav-btn active" hx-get="/api/dashboard" hx-target="#content" onclick="setActive(this)">Übersicht</button>
+                <button class="nav-btn" hx-get="/api/artikel" hx-target="#content" onclick="setActive(this)">Artikel</button>
+                <button class="nav-btn" hx-get="/api/personen" hx-target="#content" onclick="setActive(this)">Personen</button>
+                <button class="nav-btn" hx-get="/api/ereignisse" hx-target="#content" onclick="setActive(this)">Ereignisse</button>
+                <button class="nav-btn" hx-get="/api/faelle" hx-target="#content" onclick="setActive(this)">Fälle</button>
+                <button class="nav-btn" hx-get="/api/suche" hx-target="#content" onclick="setActive(this)">Suche</button>
+                <button class="nav-btn" hx-get="/api/gemeinden" hx-target="#content" onclick="setActive(this)">Gemeinden</button>
+                <button class="nav-btn" hx-get="/api/laeufe" hx-target="#content" onclick="setActive(this)">Läufe</button>
+            </nav>
         </div>
     </header>
     <main class="container">
