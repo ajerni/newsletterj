@@ -99,6 +99,33 @@ export interface Ereignis {
     erstellt_am: Date;
 }
 
+export type FallStatus = "aktiv" | "abgeschlossen" | "ruhend";
+export type BezugTyp = "kontext" | "folge" | "widerspruch";
+
+export interface Fall {
+    id: number;
+    titel: string;
+    beschreibung: string | null;
+    status: FallStatus;
+    gemeinde_id: number | null;
+    schule: string | null;
+    hauptkategorie: Kategorie | null;
+    relevanz: Relevanz;
+    artikel_anzahl: number;
+    erstellt_am: Date;
+    aktualisiert_am: Date;
+    letzter_artikel_am: Date | null;
+}
+
+export interface ArtikelBezug {
+    id: number;
+    artikel_id: number;
+    bezug_artikel_id: number;
+    aehnlichkeit: number | null;
+    bezug_typ: BezugTyp;
+    erstellt_am: Date;
+}
+
 export interface MonitorLauf {
     id: number;
     status: "gestartet" | "abgeschlossen" | "fehlgeschlagen";

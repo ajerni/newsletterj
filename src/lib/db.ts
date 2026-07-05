@@ -221,11 +221,144 @@ export async function ereignisErstellen(artikelId: number, daten: {
     schule: string | null;
     ereignis_datum: string | null;
     relevanz: Relevanz;
-}): Promise<void> {
-    await sql`
+}): Promise<number> {
+    const [row] = await sql`
         INSERT INTO newsletterj_ereignisse (artikel_id, typ, titel, beschreibung, gemeinde_id, schule, ereignis_datum, relevanz)
         VALUES (${artikelId}, ${daten.typ}, ${daten.titel}, ${daten.beschreibung ?? null}, ${daten.gemeinde_id ?? null}, ${daten.schule ?? null}, ${daten.ereignis_datum ?? null}, ${daten.relevanz ?? "mittel"})
+        RETURNING id
     `;
+    return row.id;
+}
+
+// --- Gemeinden (lookup) ---
+
+export async function gemeindeNameLaden(id: number): Promise<string | null> {
+    const [row] = await sql`SELECT name FROM newsletterj_gemeinden WHERE id = ${id}`;
+    return row?.name ?? null;
+}
+
+// --- Fälle ---
+
+export async function fallErstellen(daten: {
+    titel: string;
+    beschreibung: string | null;
+    gemeinde_id: number | null;
+    schule: string | null;
+    hauptkategorie: Kategorie | null;
+    relevanz: Relevanz;
+}): Promise<number> {
+    const [row] = await sql`
+        INSERT INTO newsletterj_faelle (titel, beschreibung, gemeinde_id, schule, hauptkategorie, relevanz, artikel_anzahl, letzter_artikel_am)
+        VALUES (${daten.titel}, ${daten.beschreibung}, ${daten.gemeinde_id}, ${daten.schule}, ${daten.hauptkategorie}, ${daten.relevanz}, 1, NOW())
+        RETURNING id
+    `;
+    return row.id;
+}
+
+export async function fallAktualisieren(id: number, daten: {
+    relevanz?: Relevanz;
+    hauptkategorie?: Kategorie | null;
+}): Promise<void> {
+    await sql`
+        UPDATE newsletterj_faelle SET
+            relevanz = COALESCE(${daten.relevanz ?? null}, relevanz),
+            hauptkategorie = COALESCE(${daten.hauptkategorie ?? null}, hauptkategorie),
+            artikel_anzahl = artikel_anzahl + 1,
+            letzter_artikel_am = NOW(),
+            aktualisiert_am = NOW()
+        WHERE id = ${id}
+    `;
+}
+
+export async function fallArtikelVerknuepfen(
+    fallId: number,
+    artikelId: number,
+    aehnlichkeit: number | null,
+    grund: string | null
+): Promise<void> {
+    await sql`
+        INSERT INTO newsletterj_fall_artikel (fall_id, artikel_id, aehnlichkeit, verknuepfungs_grund)
+        VALUES (${fallId}, ${artikelId}, ${aehnlichkeit}, ${grund})
+        ON CONFLICT (fall_id, artikel_id) DO NOTHING
+    `;
+}
+
+export async function fallEreignisVerknuepfen(fallId: number, ereignisId: number): Promise<void> {
+    await sql`
+        INSERT INTO newsletterj_fall_ereignisse (fall_id, ereignis_id)
+        VALUES (${fallId}, ${ereignisId})
+        ON CONFLICT DO NOTHING
+    `;
+}
+
+export async function artikelBezugErstellen(
+    artikelId: number,
+    bezugArtikelId: number,
+    aehnlichkeit: number | null,
+    bezugTyp: "kontext" | "folge" | "widerspruch"
+): Promise<void> {
+    if (artikelId === bezugArtikelId) return;
+    await sql`
+        INSERT INTO newsletterj_artikel_bezuege (artikel_id, bezug_artikel_id, aehnlichkeit, bezug_typ)
+        VALUES (${artikelId}, ${bezugArtikelId}, ${aehnlichkeit}, ${bezugTyp})
+        ON CONFLICT (artikel_id, bezug_artikel_id) DO NOTHING
+    `;
+}
+
+export async function faelleFuerGemeindeLaden(
+    gemeindeId: number,
+    status: string = "aktiv",
+    limit = 15
+): Promise<Array<{ id: number; titel: string; beschreibung: string | null; artikel_anzahl: number }>> {
+    return await sql`
+        SELECT id, titel, beschreibung, artikel_anzahl
+        FROM newsletterj_faelle
+        WHERE gemeinde_id = ${gemeindeId} AND status = ${status}
+        ORDER BY aktualisiert_am DESC
+        LIMIT ${limit}
+    ` as any;
+}
+
+export async function faelleFuerArtikelLaden(artikelId: number): Promise<Array<{ id: number; titel: string }>> {
+    return await sql`
+        SELECT f.id, f.titel
+        FROM newsletterj_faelle f
+        JOIN newsletterj_fall_artikel fa ON fa.fall_id = f.id
+        WHERE fa.artikel_id = ${artikelId}
+        ORDER BY f.aktualisiert_am DESC
+    ` as any;
+}
+
+export async function faelleFuerArtikelIdsLaden(
+    artikelIds: number[]
+): Promise<Map<number, Array<{ id: number; titel: string }>>> {
+    const map = new Map<number, Array<{ id: number; titel: string }>>();
+    if (artikelIds.length === 0) return map;
+
+    const rows = await sql`
+        SELECT fa.artikel_id, f.id, f.titel
+        FROM newsletterj_fall_artikel fa
+        JOIN newsletterj_faelle f ON f.id = fa.fall_id
+        WHERE fa.artikel_id = ANY(${artikelIds})
+    ` as Array<{ artikel_id: number; id: number; titel: string }>;
+
+    for (const row of rows) {
+        const liste = map.get(row.artikel_id) ?? [];
+        liste.push({ id: row.id, titel: row.titel });
+        map.set(row.artikel_id, liste);
+    }
+    return map;
+}
+
+export async function artikelOhneEinbettungLaden(limit = 50): Promise<Array<{ id: number; titel: string | null; zusammenfassung: string | null; kategorie: string | null; kategorien: string[]; schule: string | null; kontext_bezug: string | null; gemeinde_name: string | null }>> {
+    return await sql`
+        SELECT a.id, a.titel, a.zusammenfassung, a.kategorie, a.kategorien, a.schule, a.kontext_bezug, g.name as gemeinde_name
+        FROM newsletterj_artikel a
+        LEFT JOIN newsletterj_gemeinden g ON g.id = a.gemeinde_id
+        WHERE a.embedding IS NULL AND a.zusammenfassung IS NOT NULL
+        ORDER BY a.gesucht_am DESC
+        LIMIT ${limit}
+    ` as any;
 }
 
 // --- Läufe ---

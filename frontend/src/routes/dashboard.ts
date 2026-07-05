@@ -16,6 +16,19 @@ dashboardRoutes.get("/", async (c) => {
     `;
     const [personenStats] = await sql`SELECT COUNT(*)::int as gesamt FROM newsletterj_personen`;
     const [ereignisseStats] = await sql`SELECT COUNT(*)::int as gesamt FROM newsletterj_ereignisse`;
+    const [faelleStats] = await sql`
+        SELECT COUNT(*)::int as gesamt,
+            COUNT(*) FILTER (WHERE status = 'aktiv')::int as aktiv
+        FROM newsletterj_faelle
+    `;
+    const aktiveFaelle = await sql`
+        SELECT f.id, f.titel, f.artikel_anzahl, g.name as gemeinde_name
+        FROM newsletterj_faelle f
+        LEFT JOIN newsletterj_gemeinden g ON g.id = f.gemeinde_id
+        WHERE f.status = 'aktiv'
+        ORDER BY f.aktualisiert_am DESC
+        LIMIT 5
+    `;
     const [letzterLauf] = await sql`
         SELECT gestartet_am, status FROM newsletterj_laeufe ORDER BY gestartet_am DESC LIMIT 1
     `;
@@ -111,6 +124,14 @@ dashboardRoutes.get("/", async (c) => {
 
     const topStoriesHtml = topStories.map((a) => artikelKarte(a)).join("");
 
+    const faelleHtml = aktiveFaelle.map((f) => `
+        <li>
+            <a href="#" hx-get="/api/faelle/${f.id}" hx-target="#content">${esc(f.titel)}</a>
+            <span class="count-pill">${f.artikel_anzahl}</span>
+            ${f.gemeinde_name ? `<span class="muted">${esc(f.gemeinde_name)}</span>` : ""}
+        </li>
+    `).join("");
+
     return c.html(`
         <div class="header-row">
             <h2>Medienspiegel — Übersicht</h2>
@@ -122,11 +143,16 @@ dashboardRoutes.get("/", async (c) => {
             <div class="stat-card" hx-get="/api/artikel?relevanz=hoch&tage=30" hx-target="#content"><div class="stat-value">${artikelStats.hoch_relevant}</div><div class="stat-label">Hoch relevant</div></div>
             <div class="stat-card" hx-get="/api/personen" hx-target="#content"><div class="stat-value">${personenStats.gesamt}</div><div class="stat-label">Personen</div></div>
             <div class="stat-card" hx-get="/api/ereignisse" hx-target="#content"><div class="stat-value">${ereignisseStats.gesamt}</div><div class="stat-label">Ereignisse</div></div>
+            <div class="stat-card" hx-get="/api/faelle?status=aktiv" hx-target="#content"><div class="stat-value">${faelleStats.aktiv}</div><div class="stat-label">Aktive Fälle</div></div>
         </div>
 
         ${topStories.length ? `
         <h3>Top-Themen (hohe Relevanz, letzte 14 Tage)</h3>
         <div class="artikel-liste">${topStoriesHtml}</div>` : ""}
+
+        ${aktiveFaelle.length ? `
+        <h3>Aktive Fälle</h3>
+        <ul class="simple-list">${faelleHtml}</ul>` : ""}
 
         <div class="section-row">
             <div class="section-half">

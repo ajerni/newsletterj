@@ -12,6 +12,8 @@ import { personenRoutes } from "./routes/personen.js";
 import { ereignisseRoutes } from "./routes/ereignisse.js";
 import { gemeindenRoutes } from "./routes/gemeinden.js";
 import { laeufeRoutes } from "./routes/laeufe.js";
+import { faelleRoutes } from "./routes/faelle.js";
+import { sucheRoutes } from "./routes/suche.js";
 import { esc } from "./html.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -139,6 +141,8 @@ app.route("/api/personen", personenRoutes);
 app.route("/api/ereignisse", ereignisseRoutes);
 app.route("/api/gemeinden", gemeindenRoutes);
 app.route("/api/laeufe", laeufeRoutes);
+app.route("/api/faelle", faelleRoutes);
+app.route("/api/suche", sucheRoutes);
 
 app.use("/*", serveStatic({ root: path.resolve(__dirname, "../public") }));
 

@@ -2,8 +2,10 @@ import { task } from "@trigger.dev/sdk/v3";
 import { alleSuchenAusfuehren } from "../lib/suche.js";
 import { artikelExtrahieren } from "../lib/extraktion.js";
 import { personenAufloesen, gemeindeIdAufloesen } from "../lib/personen.js";
-import { artikelSpeichern, organisationFindenOderErstellen, orgErwaehnungErstellen, ereignisErstellen, laufErstellen, laufAbschliessen } from "../lib/db.js";
+import { artikelSpeichern, organisationFindenOderErstellen, orgErwaehnungErstellen, ereignisErstellen, laufErstellen, laufAbschliessen, gemeindeNameLaden } from "../lib/db.js";
 import { newsletterHtmlErstellen, newsletterSenden } from "../lib/email.js";
+import { artikelEinbettungVerarbeiten } from "../lib/embeddings.js";
+import { fallThreadingVerarbeiten } from "../lib/faelle.js";
 import type { FehlgeschlagenerArtikel } from "../lib/email.js";
 import type { SuchErgebnis, ArtikelExtraktion } from "../lib/typen.js";
 
@@ -59,9 +61,10 @@ export const monitorTask = task({
                     }
 
                     // Create events
+                    const ereignisIds: number[] = [];
                     for (const ereignis of extraktion.ereignisse) {
                         const ereignisGemeindeId = gemeindeId;
-                        await ereignisErstellen(artikelId, {
+                        const ereignisId = await ereignisErstellen(artikelId, {
                             typ: ereignis.typ,
                             titel: ereignis.titel,
                             beschreibung: ereignis.beschreibung,
@@ -70,7 +73,18 @@ export const monitorTask = task({
                             ereignis_datum: ereignis.ereignis_datum,
                             relevanz: ereignis.relevanz,
                         });
+                        ereignisIds.push(ereignisId);
                         ereignisseErstellt++;
+                    }
+
+                    // Embeddings + case threading
+                    try {
+                        const gemeindeName = gemeindeId ? await gemeindeNameLaden(gemeindeId) : null;
+                        const embedding = await artikelEinbettungVerarbeiten(artikelId, extraktion, gemeindeName);
+                        await fallThreadingVerarbeiten(artikelId, extraktion, gemeindeId, embedding, ereignisIds);
+                    } catch (einbettungsFehler) {
+                        const meldung = einbettungsFehler instanceof Error ? einbettungsFehler.message : "Unbekannter Fehler";
+                        console.error(`Embeddings/Fall-Threading für Artikel ${ergebnis.url}: ${meldung}`);
                     }
 
                     verarbeiteteArtikel.push({ ergebnis, extraktion });

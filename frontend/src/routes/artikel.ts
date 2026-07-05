@@ -138,6 +138,20 @@ artikelRoutes.get("/:id", async (c) => {
         WHERE oe.artikel_id = ${id}
         ORDER BY o.name
     `;
+    const faelle = await sql`
+        SELECT f.id, f.titel, f.status
+        FROM newsletterj_fall_artikel fa
+        JOIN newsletterj_faelle f ON f.id = fa.fall_id
+        WHERE fa.artikel_id = ${id}
+        ORDER BY f.aktualisiert_am DESC
+    `;
+    const bezuege = await sql`
+        SELECT b.bezug_typ, b.aehnlichkeit, a.id, a.titel, a.gesucht_am
+        FROM newsletterj_artikel_bezuege b
+        JOIN newsletterj_artikel a ON a.id = b.bezug_artikel_id
+        WHERE b.artikel_id = ${id}
+        ORDER BY b.aehnlichkeit DESC NULLS LAST
+    `;
 
     const personenHtml = personen.map((p) => `
         <li><a href="#" hx-get="/api/personen/${p.id}" hx-target="#content">${esc(p.name)}</a>
@@ -154,6 +168,19 @@ artikelRoutes.get("/:id", async (c) => {
 
     const orgHtml = organisationen.map((o) => `
         <li>${esc(o.name)} ${o.typ ? `<span class="muted">(${esc(o.typ.replace(/_/g, " "))})</span>` : ""}</li>
+    `).join("");
+
+    const faelleHtml = faelle.map((f) => `
+        <li><a href="#" hx-get="/api/faelle/${f.id}" hx-target="#content">${esc(f.titel)}</a>
+        <span class="badge badge-status-${esc(f.status)}">${esc(f.status)}</span></li>
+    `).join("");
+
+    const bezuegeHtml = bezuege.map((b) => `
+        <li>
+            <span class="badge">${esc(b.bezug_typ)}</span>
+            <a href="#" hx-get="/api/artikel/${b.id}" hx-target="#content">${esc(b.titel || "Ohne Titel")}</a>
+            ${b.aehnlichkeit ? `<span class="muted">${Math.round(b.aehnlichkeit * 100)}%</span>` : ""}
+        </li>
     `).join("");
 
     const suchtitel = typeof a.roh_json === "object" && a.roh_json !== null
@@ -187,6 +214,8 @@ artikelRoutes.get("/:id", async (c) => {
             ${organisationen.length ? `<div class="section-half"><h3>Organisationen (${organisationen.length})</h3><ul class="simple-list">${orgHtml}</ul></div>` : ""}
         </div>
         ${ereignisse.length ? `<h3>Ereignisse (${ereignisse.length})</h3><ul class="simple-list ereignis-liste">${ereignisseHtml}</ul>` : ""}
+        ${faelle.length ? `<h3>Fälle (${faelle.length})</h3><ul class="simple-list">${faelleHtml}</ul>` : ""}
+        ${bezuege.length ? `<h3>Verwandte Artikel (${bezuege.length})</h3><ul class="simple-list">${bezuegeHtml}</ul>` : ""}
     `);
 });
 
