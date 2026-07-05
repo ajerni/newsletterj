@@ -1,5 +1,5 @@
 import { access, constants } from "node:fs/promises";
-import puppeteer from "puppeteer";
+import puppeteer from "puppeteer-core";
 
 const PDF_STYLES = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
