@@ -7,11 +7,10 @@ FROM node:20-slim
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
-# System Chromium for dossier PDF export
+# wkhtmltopdf for dossier PDF export (headless HTML → PDF, Docker-friendly)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
+    wkhtmltopdf \
     fonts-liberation \
     fonts-dejavu-core \
     ca-certificates \
@@ -23,8 +22,11 @@ COPY src ./src
 COPY public ./public
 
 RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 appuser && \
-    chown -R appuser:nodejs /app
+    adduser --system --uid 1001 --home /home/appuser appuser && \
+    chown -R appuser:nodejs /app /home/appuser
+
+ENV HOME=/home/appuser
+ENV XDG_RUNTIME_DIR=/tmp
 
 USER appuser
 

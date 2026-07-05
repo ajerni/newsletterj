@@ -1,5 +1,7 @@
-import { access, constants } from "node:fs/promises";
-import puppeteer from "puppeteer-core";
+import { spawn } from "node:child_process";
+import { access, constants, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const PDF_STYLES = `
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -69,17 +71,14 @@ const PDF_STYLES = `
     .dossier-table-quellen td:last-child { word-break: break-all; }
 `;
 
-const CHROME_KANDIDATEN = [
-    process.env.PUPPETEER_EXECUTABLE_PATH,
-    process.env.CHROME_PATH,
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/usr/bin/google-chrome-stable",
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+const WKHTMLTOPDF_KANDIDATEN = [
+    process.env.WKHTMLTOPDF_PATH,
+    "/usr/bin/wkhtmltopdf",
+    "/usr/local/bin/wkhtmltopdf",
 ];
 
-async function chromePfadErmitteln(): Promise<string | undefined> {
-    for (const kandidat of CHROME_KANDIDATEN) {
+async function wkhtmltopdfPfadErmitteln(): Promise<string> {
+    for (const kandidat of WKHTMLTOPDF_KANDIDATEN) {
         if (!kandidat) continue;
         try {
             await access(kandidat, constants.X_OK);
@@ -88,7 +87,9 @@ async function chromePfadErmitteln(): Promise<string | undefined> {
             continue;
         }
     }
-    return undefined;
+    throw new Error(
+        "wkhtmltopdf nicht gefunden. Installieren Sie es (Docker: apt install wkhtmltopdf, macOS: brew install wkhtmltopdf)."
+    );
 }
 
 function pdfHtmlDokument(inhaltHtml: string): string {
@@ -102,31 +103,49 @@ function pdfHtmlDokument(inhaltHtml: string): string {
 </html>`;
 }
 
-export async function dossierPdfErzeugen(inhaltHtml: string): Promise<Uint8Array> {
-    const executablePath = await chromePfadErmitteln();
+function wkhtmltopdfAusfuehren(binaer: string, htmlPfad: string, pdfPfad: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const proc = spawn(binaer, [
+            "--quiet",
+            "--page-size", "A4",
+            "--margin-top", "18mm",
+            "--margin-right", "14mm",
+            "--margin-bottom", "18mm",
+            "--margin-left", "14mm",
+            "--encoding", "UTF-8",
+            "--enable-local-file-access",
+            htmlPfad,
+            pdfPfad,
+        ], {
+            env: {
+                ...process.env,
+                XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR ?? "/tmp",
+            },
+        });
 
-    const browser = await puppeteer.launch({
-        headless: true,
-        executablePath,
-        args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-gpu",
-        ],
+        let stderr = "";
+        proc.stderr.on("data", (chunk) => { stderr += String(chunk); });
+
+        proc.on("error", reject);
+        proc.on("close", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(stderr.trim() || `wkhtmltopdf beendet mit Code ${code}`));
+        });
     });
+}
+
+export async function dossierPdfErzeugen(inhaltHtml: string): Promise<Uint8Array> {
+    const binaer = await wkhtmltopdfPfadErmitteln();
+    const tempDir = await mkdtemp(join(tmpdir(), "dossier-pdf-"));
+    const htmlPfad = join(tempDir, "dossier.html");
+    const pdfPfad = join(tempDir, "dossier.pdf");
 
     try {
-        const page = await browser.newPage();
-        await page.setContent(pdfHtmlDokument(inhaltHtml), { waitUntil: "load" });
-        const pdf = await page.pdf({
-            format: "A4",
-            printBackground: true,
-            margin: { top: "18mm", right: "14mm", bottom: "18mm", left: "14mm" },
-        });
-        return pdf;
+        await writeFile(htmlPfad, pdfHtmlDokument(inhaltHtml), "utf8");
+        await wkhtmltopdfAusfuehren(binaer, htmlPfad, pdfPfad);
+        return await readFile(pdfPfad);
     } finally {
-        await browser.close();
+        await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
     }
 }
 

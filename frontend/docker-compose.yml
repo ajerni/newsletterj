@@ -14,7 +14,8 @@ services:
     environment:
       PORT: "3001"
       NODE_ENV: production
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+      HOME: /home/appuser
+      XDG_RUNTIME_DIR: /tmp
     networks:
       - iotnetwork
     labels:
