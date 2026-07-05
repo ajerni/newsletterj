@@ -1540,6 +1540,63 @@ a.btn {
     display: block;
 }
 
+.global-loading {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    align-items: center;
+    justify-content: center;
+}
+
+.htmx-request.global-loading {
+    display: flex;
+}
+
+.global-loading-backdrop {
+    position: absolute;
+    inset: 0;
+    background: var(--color-modal-overlay);
+}
+
+.global-loading-card {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    min-width: 260px;
+    max-width: 90vw;
+    padding: 24px 28px;
+    border-radius: 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    box-shadow: 0 12px 40px var(--color-modal-shadow);
+}
+
+.global-loading-text {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text);
+    text-align: center;
+    line-height: 1.45;
+}
+
+.spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--color-border);
+    border-top-color: var(--color-accent);
+    border-radius: 50%;
+    animation: spinner-drehen 0.75s linear infinite;
+}
+
+@keyframes spinner-drehen {
+    to { transform: rotate(360deg); }
+}
+
 /* Dossier */
 .dossier-composer {
     margin-bottom: 24px;
@@ -1630,10 +1687,55 @@ a.btn {
 .dossier-llm-text {
     margin: 16px 0 20px;
     line-height: 1.6;
+    font-size: 15px;
 }
 
 .dossier-llm-text p {
     margin: 0 0 12px;
+}
+
+.dossier-llm-text h2,
+.dossier-llm-text h3,
+.dossier-llm-text h4 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--color-text-heading);
+    margin: 24px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--color-border-light);
+}
+
+.dossier-llm-text h2:first-child,
+.dossier-llm-text h3:first-child,
+.dossier-llm-text h4:first-child {
+    margin-top: 0;
+}
+
+.dossier-llm-text ul,
+.dossier-llm-text ol {
+    margin: 0 0 16px;
+    padding-left: 1.35rem;
+}
+
+.dossier-llm-text li {
+    margin: 10px 0;
+}
+
+.dossier-llm-text li::marker {
+    color: var(--color-accent);
+}
+
+.dossier-llm-text li p {
+    margin: 0;
+}
+
+.dossier-llm-text strong {
+    font-weight: 600;
+    color: var(--color-text-strong);
+}
+
+.dossier-fn {
+    white-space: nowrap;
 }
 
 .dossier-fn a {

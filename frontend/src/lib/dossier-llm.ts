@@ -1,4 +1,5 @@
 import sql from "../db.js";
+import { marked } from "marked";
 import { esc } from "../html.js";
 import { kategorieLabel } from "../ui.js";
 import { openRouterChat } from "./openrouter.js";
@@ -110,21 +111,35 @@ function quellenBlock(quellen: DossierQuelle[]): string {
         .join("\n\n");
 }
 
-export function dossierLlmTextHtml(text: string, quellen: DossierQuelle[]): string {
-    let body = esc(text);
-    for (const q of quellen) {
-        body = body.replaceAll(
-            `[${q.nr}]`,
-            `<sup class="dossier-fn"><a href="#dossier-quelle-${q.nr}" title="${esc(q.titel)}">[${q.nr}]</a></sup>`
-        );
-    }
+function zitateVerlinken(html: string, quellen: DossierQuelle[]): string {
+    const quellenMap = new Map(quellen.map((q) => [q.nr, q]));
 
-    const absaetze = body
-        .split(/\n\n+/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-        .join("");
+    return html.replace(/\[(\d+(?:\s*,\s*\d+)*)\]/g, (_match, nummern: string) => {
+        const teile = nummern.split(",").map((n) => Number(n.trim())).filter((n) => n > 0);
+        const links = teile.map((nr) => {
+            const q = quellenMap.get(nr);
+            if (!q) return `[${nr}]`;
+            return `<sup class="dossier-fn"><a href="#dossier-quelle-${nr}" title="${esc(q.titel)}">[${nr}]</a></sup>`;
+        });
+        return links.join("");
+    });
+}
+
+function markdownZuHtml(text: string): string {
+    const bereinigt = text
+        .replace(/^Gerne[,!.].*?\n+/i, "")
+        .replace(/^Hier (sind|ist).*?\n+/i, "")
+        .trim();
+
+    return marked.parse(bereinigt, {
+        async: false,
+        gfm: true,
+        breaks: false,
+    }) as string;
+}
+
+export function dossierLlmTextHtml(text: string, quellen: DossierQuelle[]): string {
+    const body = zitateVerlinken(markdownZuHtml(text), quellen);
 
     const quellenListe = quellen.length
         ? `<ol class="dossier-quellen">${quellen.map((q) => `
@@ -140,7 +155,7 @@ export function dossierLlmTextHtml(text: string, quellen: DossierQuelle[]): stri
         `).join("")}</ol>`
         : "";
 
-    return `<div class="dossier-llm-text">${absaetze || `<p>${body}</p>`}${quellenListe}</div>`;
+    return `<div class="dossier-llm-text">${body}${quellenListe}</div>`;
 }
 
 const EXECUTIVE_SYSTEM = `Du bist «Schulmonitor», Investigativ-Analyst für Bildungspolitik und Volksschulen im Kanton Zürich.
@@ -158,9 +173,16 @@ const RISIKEN_SYSTEM = `Du bist «Schulmonitor», Analyst für Bildungspolitik i
 
 Aufgabe: Formuliere «Risiken und Trends» für ein Recherche-Dossier.
 
+Format (Markdown):
+## Risiken
+- 3–6 Bulletpoints mit **Fettem Titel:** und Kurztext
+
+## Trends
+- 3–6 Bulletpoints mit **Fettem Titel:** und Kurztext
+
 Regeln:
-- Struktur: zwei Abschnitte mit Überschriften «Risiken» und «Trends» (jeweils 3–6 Bulletpoints oder kurze Absätze).
-- Nutze Statistiken, Fälle und Trends aus dem Kontext; inhaltliche Aussagen mit [n] belegen.
+- Beginne direkt mit ## Risiken — keine Einleitung.
+- Nutze Statistiken, Fälle und Trends aus dem Kontext; inhaltliche Aussagen mit [n] belegen (einzeln: [3][7], nicht [3, 7]).
 - Risiken: laufende Konflikte, aktive Fälle, hochrelevante Themen, Gemeinde-Hotspots.
 - Trends: steigende/fallende Kategorien, neue Muster — nur wenn Daten vorliegen.
 - Deutsch, präzise, keine Erfindungen.`;

@@ -89,7 +89,12 @@ async function dossierListeAnsicht(
         <div class="dossier-composer card">
             <h3>Recherche-Dossier erstellen</h3>
             <p class="muted">SQL-Auswertung aller erfassten Daten für den gewählten Zeitraum.</p>
-            <form class="filter-bar dossier-form" hx-post="/api/dossier/run" hx-target="#content">
+            <form class="filter-bar dossier-form"
+                hx-post="/api/dossier/run"
+                hx-target="#content"
+                hx-indicator="#global-loading"
+                hx-disabled-elt="find button[type='submit']"
+                hx-on::before-request="document.getElementById('global-loading-text').textContent='Dossier wird erstellt… KI-Auswertung kann 10–30 Sekunden dauern.'">
                 <label>
                     Zeitraum
                     <select name="tage">
