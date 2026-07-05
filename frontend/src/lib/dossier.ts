@@ -545,7 +545,7 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
             ${dossierAbschnitt(6, "Übersicht nach Personen", personen)}
             ${dossierAbschnitt(7, "Netzwerk der beteiligten Personen und Organisationen", netzwerk)}
             ${dossierAbschnitt(8, "Risiken und Trends", risiken)}
-            ${dossierAbschnitt(10, "Vollständige Quellenliste", quellenListe)}
+            ${dossierAbschnitt(9, "Vollständige Quellenliste", quellenListe)}
         </article>
     `;
 
