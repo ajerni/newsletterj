@@ -56,26 +56,30 @@ export interface SemantischerTreffer {
 export async function semantischeArtikelSuche(
     query: string,
     limit = 20,
-    minSimilarity = SEMANTISCH_SCHWELLWERT_LANG
+    minSimilarity = SEMANTISCH_SCHWELLWERT_LANG,
+    tage = 0
 ): Promise<SemantischerTreffer[]> {
     const embedding = await einbettungErzeugen(query);
     const literal = vektorLiteral(embedding);
 
     const treffer = await sql`
-        SELECT s.*, g.name as gemeinde_name
-        FROM newsletterj_semantische_suche(
-            ${literal}::vector(1536),
-            ${limit},
-            ${minSimilarity}
-        ) s
-        LEFT JOIN newsletterj_gemeinden g ON g.id = s.gemeinde_id
+        SELECT a.id, a.titel, a.gemeinde_id, g.name as gemeinde_name,
+            a.kategorie, a.relevanz, a.gesucht_am,
+            (1 - (a.embedding <=> ${literal}::vector(1536)))::real AS similarity
+        FROM newsletterj_artikel a
+        LEFT JOIN newsletterj_gemeinden g ON g.id = a.gemeinde_id
+        WHERE a.embedding IS NOT NULL
+          AND (${tage}::int = 0 OR COALESCE(a.veroeffentlicht_am, a.gesucht_am) > NOW() - make_interval(days => ${tage}))
+          AND (1 - (a.embedding <=> ${literal}::vector(1536))) >= ${minSimilarity}
+        ORDER BY a.embedding <=> ${literal}::vector(1536)
+        LIMIT ${limit}
     ` as Array<Omit<SemantischerTreffer, "match_typ">>;
 
     return treffer.map((t) => ({ ...t, match_typ: "semantisch" as const }));
 }
 
 /** Keyword search — matches Artikel filter fields + Kategorie slug. */
-export async function stichwortArtikelSuche(query: string, limit = 20): Promise<SemantischerTreffer[]> {
+export async function stichwortArtikelSuche(query: string, limit = 20, tage = 0): Promise<SemantischerTreffer[]> {
     const muster = `%${query}%`;
     const kategorieSlug = query.trim().toLowerCase().replace(/\s+/g, "_");
 
@@ -84,12 +88,13 @@ export async function stichwortArtikelSuche(query: string, limit = 20): Promise<
             a.kategorie, a.relevanz, a.gesucht_am
         FROM newsletterj_artikel a
         LEFT JOIN newsletterj_gemeinden g ON g.id = a.gemeinde_id
-        WHERE a.titel ILIKE ${muster}
+        WHERE (${tage}::int = 0 OR COALESCE(a.veroeffentlicht_am, a.gesucht_am) > NOW() - make_interval(days => ${tage}))
+          AND (a.titel ILIKE ${muster}
            OR a.zusammenfassung ILIKE ${muster}
            OR a.ausschnitt ILIKE ${muster}
            OR a.schule ILIKE ${muster}
            OR a.kategorie = ${kategorieSlug}
-           OR ${kategorieSlug} = ANY(a.kategorien)
+           OR ${kategorieSlug} = ANY(a.kategorien))
         ORDER BY COALESCE(a.veroeffentlicht_am, a.gesucht_am) DESC
         LIMIT ${limit}
     ` as Array<{
@@ -116,7 +121,8 @@ export async function stichwortArtikelSuche(query: string, limit = 20): Promise<
 export async function hybrideArtikelSuche(
     query: string,
     limit = 20,
-    einbettungenVorhanden: boolean
+    einbettungenVorhanden: boolean,
+    tage = 0
 ): Promise<SemantischerTreffer[]> {
     const istKurz = queryWoerterAnzahl(query) <= 2;
     const ergebnis: SemantischerTreffer[] = [];
@@ -125,7 +131,7 @@ export async function hybrideArtikelSuche(
     if (einbettungenVorhanden) {
         try {
             const schwellwert = semantikSchwellwert(query);
-            const semantisch = await semantischeArtikelSuche(query, limit, schwellwert);
+            const semantisch = await semantischeArtikelSuche(query, limit, schwellwert, tage);
             for (const t of semantisch) {
                 if (!gesehen.has(t.id)) {
                     gesehen.add(t.id);
@@ -145,7 +151,7 @@ export async function hybrideArtikelSuche(
 
     if (brauchtStichwort && ergebnis.length < limit) {
         const rest = limit - ergebnis.length;
-        const stichwort = await stichwortArtikelSuche(query, rest + 10);
+        const stichwort = await stichwortArtikelSuche(query, rest + 10, tage);
         for (const t of stichwort) {
             if (!gesehen.has(t.id) && ergebnis.length < limit) {
                 gesehen.add(t.id);

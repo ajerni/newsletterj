@@ -1387,12 +1387,32 @@ td.actions {
 
 .chat-actions {
     display: flex;
+    align-items: flex-end;
     justify-content: flex-end;
     gap: 8px;
 }
 
 .chat-actions .btn-primary {
     min-width: 7rem;
+}
+
+.chat-filter {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 170px;
+    margin-right: auto;
+}
+
+.chat-filter select {
+    height: 36px;
+    border: 1px solid var(--color-input-border);
+    border-radius: 8px;
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: 0 10px;
+    font: inherit;
+    font-size: 13px;
 }
 
 .chat-input {

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { esc } from "../html.js";
 import { ragAntwortGenerieren, ragKontextLaden, type RagQuelle } from "../lib/rag.js";
+import { zeitraumOptionen } from "../ui.js";
 
 export const chatRoutes = new Hono();
 
@@ -84,6 +85,13 @@ chatRoutes.get("/", async (c) => {
                             placeholder="Ihre Frage an den Schulmonitor…"
                             class="chat-input"></textarea>
                         <div class="chat-actions">
+                            <label class="chat-filter">
+                                <span class="muted">Zeitraum</span>
+                                <select name="tage">
+                                    <option value="">Gesamter Zeitraum</option>
+                                    ${zeitraumOptionen(null)}
+                                </select>
+                            </label>
                             <button type="submit" class="btn btn-primary">Senden</button>
                         </div>
                     </form>
@@ -96,13 +104,14 @@ chatRoutes.get("/", async (c) => {
 chatRoutes.post("/ask", async (c) => {
     const body = await c.req.parseBody();
     const frage = typeof body.frage === "string" ? body.frage.trim() : "";
+    const tage = typeof body.tage === "string" ? Number(body.tage) || 0 : 0;
 
     if (!frage) {
         return c.html(turnHtml("—", "", [], "Bitte geben Sie eine Frage ein."), 400);
     }
 
     try {
-        const quellen = await ragKontextLaden(frage);
+        const quellen = await ragKontextLaden(frage, tage);
         const antwort = await ragAntwortGenerieren(frage, quellen);
         return c.html(turnHtml(frage, antwort, quellen));
     } catch (fehler) {

@@ -34,7 +34,7 @@ function ragSuchbegriffe(frage: string): string[] {
     return [...new Set(woerter)].sort((a, b) => b.length - a.length).slice(0, 5);
 }
 
-async function ragArtikelRetrieval(frage: string): Promise<SemantischerTreffer[]> {
+async function ragArtikelRetrieval(frage: string, tage = 0): Promise<SemantischerTreffer[]> {
     const einbettungenVorhanden = await hatEinbettungen();
     const ergebnis: SemantischerTreffer[] = [];
     const gesehen = new Set<number>();
@@ -51,7 +51,7 @@ async function ragArtikelRetrieval(frage: string): Promise<SemantischerTreffer[]
     // 1. Semantic with lower threshold (RAG tolerates weaker matches)
     if (einbettungenVorhanden) {
         try {
-            hinzufuegen(await semantischeArtikelSuche(frage, RAG_KONTEXT_LIMIT, RAG_SEMANTIK_SCHWELLWERT));
+            hinzufuegen(await semantischeArtikelSuche(frage, RAG_KONTEXT_LIMIT, RAG_SEMANTIK_SCHWELLWERT, tage));
         } catch {
             // fall through
         }
@@ -59,14 +59,14 @@ async function ragArtikelRetrieval(frage: string): Promise<SemantischerTreffer[]
 
     // 2. Standard hybrid search (semantic + keyword for short queries)
     if (ergebnis.length < RAG_KONTEXT_LIMIT) {
-        hinzufuegen(await hybrideArtikelSuche(frage, RAG_KONTEXT_LIMIT, einbettungenVorhanden));
+        hinzufuegen(await hybrideArtikelSuche(frage, RAG_KONTEXT_LIMIT, einbettungenVorhanden, tage));
     }
 
     // 3. Keyword on extracted terms — fixes long questions where full-string ILIKE matches nothing
     if (ergebnis.length < RAG_KONTEXT_LIMIT) {
         for (const begriff of ragSuchbegriffe(frage)) {
             if (ergebnis.length >= RAG_KONTEXT_LIMIT) break;
-            hinzufuegen(await stichwortArtikelSuche(begriff, 10));
+            hinzufuegen(await stichwortArtikelSuche(begriff, 10, tage));
         }
     }
 
@@ -99,8 +99,8 @@ Regeln:
 - Antworte auf Deutsch, sachlich und präzise (2–8 Absätze je nach Frage).
 - Verwende die Zitatform [1] oder [1][2] inline im Text, keine anderen Fussnotenformate.`;
 
-export async function ragKontextLaden(frage: string): Promise<RagQuelle[]> {
-    const treffer = await ragArtikelRetrieval(frage);
+export async function ragKontextLaden(frage: string, tage = 0): Promise<RagQuelle[]> {
+    const treffer = await ragArtikelRetrieval(frage, tage);
 
     if (treffer.length === 0) return [];
 
