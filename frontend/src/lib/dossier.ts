@@ -2,6 +2,14 @@ import sql from "../db.js";
 import { esc } from "../html.js";
 import { kategorieLabel, datumFormatieren, relevanzBadge } from "../ui.js";
 import { netzwerkHtml } from "./netzwerk.js";
+import {
+    dossierExecutiveSummaryGenerieren,
+    dossierLlmTextHtml,
+    dossierQuellenLaden,
+    dossierRisikenTrendsGenerieren,
+    dossierTrendDatenLaden,
+    type DossierQuelle,
+} from "./dossier-llm.js";
 
 export function zeitraumLabel(tage: number): string {
     switch (tage) {
@@ -80,7 +88,7 @@ async function dossierStatistikLaden(tage: number): Promise<DossierStatistik> {
     };
 }
 
-function executiveSummaryHtml(stats: DossierStatistik, zeitraum: string, topKategorien: string[]): string {
+function statsBlockHtml(stats: DossierStatistik, zeitraum: string, topKategorien: string[]): string {
     const themen = topKategorien.length
         ? topKategorien.map((k) => kategorieLabel(k)).join(", ")
         : "keine dominanten Themen";
@@ -97,6 +105,24 @@ function executiveSummaryHtml(stats: DossierStatistik, zeitraum: string, topKate
         </ul>
         <p>Schwerpunktthemen: ${esc(themen)}.</p>
     `;
+}
+
+async function executiveSummaryAbschnitt(
+    label: string,
+    stats: DossierStatistik,
+    topKategorien: string[],
+    quellen: DossierQuelle[]
+): Promise<string> {
+    const statsHtml = statsBlockHtml(stats, label, topKategorien);
+
+    try {
+        const text = await dossierExecutiveSummaryGenerieren(label, stats, topKategorien, quellen);
+        return `${statsHtml}${dossierLlmTextHtml(text, quellen)}`;
+    } catch (fehler) {
+        const meldung = fehler instanceof Error ? fehler.message : "Unbekannter Fehler";
+        console.error(`Dossier Executive Summary LLM: ${meldung}`);
+        return `${statsHtml}<p class="muted">KI-Zusammenfassung nicht verfügbar (${esc(meldung)}).</p>`;
+    }
 }
 
 async function chronologieHtml(tage: number): Promise<string> {
@@ -298,7 +324,7 @@ async function personenHtml(tage: number): Promise<string> {
     `;
 }
 
-async function risikenTrendsHtml(tage: number): Promise<string> {
+async function risikenTrendsTabellen(tage: number): Promise<{ html: string; faelleTitel: string[] }> {
     const zeitraum = artikelZeitraumBedingung(tage);
 
     const faelle = await sql`
@@ -383,7 +409,46 @@ async function risikenTrendsHtml(tage: number): Promise<string> {
             </table>
         `;
 
-    return `${faelleHtml}${trendHtml}`;
+    const faelleTitel = faelle.map((f) => String(f.titel));
+
+    return {
+        faelleTitel,
+        html: `${faelleHtml}${trendHtml}`,
+    };
+}
+
+async function risikenTrendsAbschnitt(
+    label: string,
+    tage: number,
+    stats: DossierStatistik,
+    topKategorien: string[],
+    quellen: DossierQuelle[],
+    trends: Awaited<ReturnType<typeof dossierTrendDatenLaden>>
+): Promise<string> {
+    const { html: tabellenHtml, faelleTitel } = await risikenTrendsTabellen(tage);
+
+    try {
+        const text = await dossierRisikenTrendsGenerieren(
+            label,
+            stats,
+            topKategorien,
+            trends,
+            faelleTitel,
+            quellen
+        );
+        return `
+            ${dossierLlmTextHtml(text, quellen)}
+            <h4 class="dossier-datengrundlage">Datengrundlage</h4>
+            ${tabellenHtml}
+        `;
+    } catch (fehler) {
+        const meldung = fehler instanceof Error ? fehler.message : "Unbekannter Fehler";
+        console.error(`Dossier Risiken/Trends LLM: ${meldung}`);
+        return `
+            <p class="muted">KI-Auswertung nicht verfügbar (${esc(meldung)}).</p>
+            ${tabellenHtml}
+        `;
+    }
 }
 
 async function quellenHtml(tage: number): Promise<string> {
@@ -441,21 +506,28 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
     const stats = await dossierStatistikLaden(tage);
     const { html: themenInhalt, top } = await themenHtml(tage);
 
+    const [quellen, trends] = await Promise.all([
+        dossierQuellenLaden(tage),
+        dossierTrendDatenLaden(tage),
+    ]);
+
     const [
+        executiveSummary,
         chronologie,
         gemeinden,
         schulen,
         personen,
         netzwerk,
         risiken,
-        quellen,
+        quellenListe,
     ] = await Promise.all([
+        executiveSummaryAbschnitt(label, stats, top, quellen),
         chronologieHtml(tage),
         gemeindenHtml(tage),
         schulenHtml(tage),
         personenHtml(tage),
         netzwerkHtml(tage),
-        risikenTrendsHtml(tage),
+        risikenTrendsAbschnitt(label, tage, stats, top, quellen, trends),
         quellenHtml(tage),
     ]);
 
@@ -463,9 +535,9 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
         <article class="dossier-report">
             <header class="dossier-report-header">
                 <h2>Recherche-Dossier — ${esc(label)}</h2>
-                <p class="muted">Erstellt am ${datumFormatieren(new Date(), true)} · SQL-Auswertung (v1)</p>
+                <p class="muted">Erstellt am ${datumFormatieren(new Date(), true)} · KI-gestützte Auswertung</p>
             </header>
-            ${dossierAbschnitt(1, "Executive Summary", executiveSummaryHtml(stats, label, top))}
+            ${dossierAbschnitt(1, "Executive Summary", executiveSummary)}
             ${dossierAbschnitt(2, "Chronologische Übersicht", chronologie)}
             ${dossierAbschnitt(3, "Themenübersicht", themenInhalt)}
             ${dossierAbschnitt(4, "Übersicht nach Gemeinden", gemeinden)}
@@ -473,7 +545,7 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
             ${dossierAbschnitt(6, "Übersicht nach Personen", personen)}
             ${dossierAbschnitt(7, "Netzwerk der beteiligten Personen und Organisationen", netzwerk)}
             ${dossierAbschnitt(8, "Risiken und Trends", risiken)}
-            ${dossierAbschnitt(10, "Vollständige Quellenliste", quellen)}
+            ${dossierAbschnitt(10, "Vollständige Quellenliste", quellenListe)}
         </article>
     `;
 

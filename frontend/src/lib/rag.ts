@@ -6,6 +6,7 @@ import {
     stichwortArtikelSuche,
     type SemantischerTreffer,
 } from "./semantik.js";
+import { openRouterChat } from "./openrouter.js";
 
 const RAG_KONTEXT_LIMIT = 8;
 const RAG_SEMANTIK_SCHWELLWERT = 0.35;
@@ -82,14 +83,6 @@ export interface RagQuelle {
     quellen_name: string | null;
 }
 
-interface OpenRouterChatAntwort {
-    choices?: Array<{
-        message?: { content?: string | null };
-        finish_reason?: string;
-    }>;
-    error?: { message?: string };
-}
-
 const SYSTEM_PROMPT = `Du bist «Schulmonitor», ein Recherche-Assistent für Bildungspolitik und Volksschulen im Kanton Zürich.
 
 Regeln:
@@ -147,49 +140,10 @@ function quellenBlock(quellen: RagQuelle[]): string {
         .join("\n\n");
 }
 
-function llmInhaltExtrahieren(daten: OpenRouterChatAntwort): string {
-    if (daten?.error) {
-        throw new Error(daten.error.message ?? "OpenRouter Fehler");
-    }
-    const content = daten?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
-        throw new Error("OpenRouter lieferte keine Antwort");
-    }
-    return content.trim();
-}
-
 export async function ragAntwortGenerieren(frage: string, quellen: RagQuelle[]): Promise<string> {
-    const modell = process.env.OPENROUTER_MODEL;
-    if (!modell) {
-        throw new Error("OPENROUTER_MODEL ist nicht konfiguriert");
-    }
-
     const benutzerPrompt = quellen.length === 0
         ? `Frage: ${frage}\n\nEs wurden keine passenden Artikel im Corpus gefunden. Erkläre dem Nutzer kurz, dass keine Quellen vorliegen, und schlage vor, die Frage umzuformulieren oder den Monitor-Lauf zu prüfen.`
         : `Frage: ${frage}\n\nVerfügbare Quellen:\n\n${quellenBlock(quellen)}`;
 
-    const antwort = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: modell,
-            messages: [
-                { role: "system", content: SYSTEM_PROMPT },
-                { role: "user", content: benutzerPrompt },
-            ],
-            max_tokens: 2000,
-            temperature: 0.2,
-        }),
-    });
-
-    if (!antwort.ok) {
-        const text = await antwort.text().catch(() => "");
-        throw new Error(`OpenRouter fehlgeschlagen: ${antwort.status} ${text.slice(0, 150)}`);
-    }
-
-    const daten: OpenRouterChatAntwort = await antwort.json();
-    return llmInhaltExtrahieren(daten);
+    return openRouterChat(SYSTEM_PROMPT, benutzerPrompt, 2000);
 }

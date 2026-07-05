@@ -1627,6 +1627,38 @@ a.btn {
     max-width: 280px;
 }
 
+.dossier-llm-text {
+    margin: 16px 0 20px;
+    line-height: 1.6;
+}
+
+.dossier-llm-text p {
+    margin: 0 0 12px;
+}
+
+.dossier-fn a {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.dossier-quellen {
+    margin: 16px 0 0;
+    padding-left: 24px;
+    font-size: 13px;
+}
+
+.dossier-quellen li {
+    margin: 6px 0;
+}
+
+.dossier-datengrundlage {
+    margin-top: 24px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    color: var(--color-text-muted);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }
