@@ -38,8 +38,12 @@ async function dossierListeAnsicht(
 
     const zeilen = dossiers.map((d) => {
         const stats = d.statistik_json as { artikel?: number } | null;
+        const nameZelle = d.status === "abgeschlossen"
+            ? `<a href="#" hx-get="/api/dossier/${d.id}" hx-target="#content"><strong>Dossier #${d.id}</strong></a>`
+            : `<strong>Dossier #${d.id}</strong>`;
         return `
             <tr>
+                <td>${nameZelle}</td>
                 <td><span class="badge badge-${statusKlasse(String(d.status))}">${esc(String(d.status))}</span></td>
                 <td>${esc(d.zeitraum_label)}</td>
                 <td>${stats?.artikel ?? "—"}</td>
@@ -100,6 +104,7 @@ async function dossierListeAnsicht(
         <table>
             <thead>
                 <tr>
+                    <th>Name</th>
                     <th>Status</th>
                     <th>Zeitraum</th>
                     <th>Artikel</th>
@@ -108,7 +113,7 @@ async function dossierListeAnsicht(
                     <th></th>
                 </tr>
             </thead>
-            <tbody>${zeilen || '<tr><td colspan="6" class="empty">Noch keine Dossiers</td></tr>'}</tbody>
+            <tbody>${zeilen || '<tr><td colspan="7" class="empty">Noch keine Dossiers</td></tr>'}</tbody>
         </table>
         ${pagination}
     `;
