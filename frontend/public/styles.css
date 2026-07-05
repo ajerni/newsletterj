@@ -1791,6 +1791,12 @@ a.btn {
     color: var(--color-text-muted);
 }
 
+.netzwerk-quellen {
+    max-width: 320px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }

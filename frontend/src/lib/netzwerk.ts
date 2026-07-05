@@ -189,20 +189,56 @@ export async function netzwerkZentralitaet(
     `;
 }
 
+export interface NetzwerkVerbindung {
+    von_id: number;
+    zu_id: number;
+    relation: string;
+    person_a_name: string;
+    person_a_funktion: string | null;
+    person_b_name: string;
+    person_b_funktion: string | null;
+    quellen: Array<{ artikel_id: number; titel: string | null }>;
+}
+
+export function netzwerkQuellenLinksHtml(
+    quellen: Array<{ artikel_id: number; titel: string | null }>,
+    maxAnzeige = 3
+): string {
+    if (quellen.length === 0) return "—";
+
+    const sichtbar = quellen.slice(0, maxAnzeige);
+    const links = sichtbar
+        .map(
+            (q) =>
+                `<a href="#" hx-get="/api/artikel/${q.artikel_id}" hx-target="#content">${esc(q.titel || `Artikel #${q.artikel_id}`)}</a>`
+        )
+        .join(", ");
+
+    const rest = quellen.length - sichtbar.length;
+    if (rest > 0) {
+        return `${links} <span class="muted">+${rest}</span>`;
+    }
+    if (quellen.length > 1) {
+        return `${links} <span class="muted">(${quellen.length})</span>`;
+    }
+    return links;
+}
+
 export async function netzwerkStaerksteVerbindungen(
     tage = 0,
     limit = 25,
     filter: NetzwerkKantenFilter = "alle"
-) {
+): Promise<NetzwerkVerbindung[]> {
     const zeitraum = artikelZeitraumBedingung(tage);
     const kantenFilter = kantenFilterBedingung(filter);
 
-    return sql`
+    const kanten = await sql`
         SELECT
             b.von_id,
             b.zu_id,
             b.relation,
-            COUNT(DISTINCT b.quell_artikel_id)::int AS artikel_anzahl,
+            b.quell_artikel_id,
+            a.titel AS artikel_titel,
             p1.name AS person_a_name,
             p1.aktuelle_funktion AS person_a_funktion,
             p2.name AS person_b_name,
@@ -215,14 +251,43 @@ export async function netzwerkStaerksteVerbindungen(
           AND b.zu_typ = 'person'
           AND ${zeitraum}
           AND ${kantenFilter}
-        GROUP BY b.von_id, b.zu_id, b.relation, p1.name, p1.aktuelle_funktion, p2.name, p2.aktuelle_funktion
-        ORDER BY
-            CASE WHEN b.relation = 'erwaehnt_zusammen' THEN 1 ELSE 0 END,
-            artikel_anzahl DESC,
-            p1.name,
-            p2.name
-        LIMIT ${limit}
+        ORDER BY a.gesucht_am DESC
     `;
+
+    const gruppen = new Map<string, NetzwerkVerbindung>();
+
+    for (const k of kanten) {
+        const schluessel = `${k.von_id}:${k.zu_id}:${k.relation}`;
+        let eintrag = gruppen.get(schluessel);
+        if (!eintrag) {
+            eintrag = {
+                von_id: k.von_id,
+                zu_id: k.zu_id,
+                relation: k.relation,
+                person_a_name: k.person_a_name,
+                person_a_funktion: k.person_a_funktion,
+                person_b_name: k.person_b_name,
+                person_b_funktion: k.person_b_funktion,
+                quellen: [],
+            };
+            gruppen.set(schluessel, eintrag);
+        }
+        if (!eintrag.quellen.some((q) => q.artikel_id === k.quell_artikel_id)) {
+            eintrag.quellen.push({
+                artikel_id: k.quell_artikel_id,
+                titel: k.artikel_titel,
+            });
+        }
+    }
+
+    return [...gruppen.values()]
+        .sort((a, b) => {
+            const aExplizit = a.relation !== "erwaehnt_zusammen" ? 0 : 1;
+            const bExplizit = b.relation !== "erwaehnt_zusammen" ? 0 : 1;
+            if (aExplizit !== bExplizit) return aExplizit - bExplizit;
+            return b.quellen.length - a.quellen.length;
+        })
+        .slice(0, limit);
 }
 
 export async function netzwerkKantenStatistik(tage = 0) {
@@ -259,12 +324,12 @@ export async function netzwerkHtml(tage: number): Promise<string> {
         return `<p class="muted">Keine Personen-Verbindungen im gewählten Zeitraum.</p>`;
     }
 
-    const verbindungsZeile = (v: (typeof verbindungen)[number]) => `
+    const verbindungsZeile = (v: NetzwerkVerbindung) => `
         <tr>
             <td>${esc(v.person_a_name)}${v.person_a_funktion ? `<br><span class="muted">${esc(v.person_a_funktion)}</span>` : ""}</td>
             <td>${esc(v.person_b_name)}${v.person_b_funktion ? `<br><span class="muted">${esc(v.person_b_funktion)}</span>` : ""}</td>
             <td>${relationBadgeHtml(String(v.relation))}</td>
-            <td>${v.artikel_anzahl}</td>
+            <td class="netzwerk-quellen">${netzwerkQuellenLinksHtml(v.quellen)}</td>
         </tr>
     `;
 

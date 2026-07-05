@@ -12,6 +12,7 @@ import {
     type NetzwerkKantenFilter,
 } from "../lib/netzwerk.js";
 import { relationBadgeHtml } from "../lib/relationen.js";
+import { netzwerkQuellenLinksHtml } from "../lib/netzwerk.js";
 
 export const netzwerkRoutes = new Hono();
 
@@ -48,10 +49,10 @@ async function netzwerkAnsicht(
 
     const verbindungsZeilen = verbindungen.map((v) => `
         <tr>
-            <td><a href="#" hx-get="/api/personen/${v.von_id}" hx-target="#content">${esc(v.person_a_name)}</a></td>
-            <td><a href="#" hx-get="/api/personen/${v.zu_id}" hx-target="#content">${esc(v.person_b_name)}</a></td>
+            <td><a href="#" hx-get="/api/personen/${v.von_id}" hx-target="#content">${esc(v.person_a_name)}</a>${v.person_a_funktion ? `<br><span class="muted">${esc(v.person_a_funktion)}</span>` : ""}</td>
+            <td><a href="#" hx-get="/api/personen/${v.zu_id}" hx-target="#content">${esc(v.person_b_name)}</a>${v.person_b_funktion ? `<br><span class="muted">${esc(v.person_b_funktion)}</span>` : ""}</td>
             <td>${relationBadgeHtml(String(v.relation))}</td>
-            <td>${v.artikel_anzahl}</td>
+            <td class="netzwerk-quellen">${netzwerkQuellenLinksHtml(v.quellen)}</td>
         </tr>
     `).join("");
 
