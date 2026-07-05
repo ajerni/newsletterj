@@ -1,3 +1,4 @@
+import { access, constants } from "node:fs/promises";
 import puppeteer from "puppeteer";
 
 const PDF_STYLES = `
@@ -68,6 +69,28 @@ const PDF_STYLES = `
     .dossier-table-quellen td:last-child { word-break: break-all; }
 `;
 
+const CHROME_KANDIDATEN = [
+    process.env.PUPPETEER_EXECUTABLE_PATH,
+    process.env.CHROME_PATH,
+    "/usr/bin/chromium",
+    "/usr/bin/chromium-browser",
+    "/usr/bin/google-chrome-stable",
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+];
+
+async function chromePfadErmitteln(): Promise<string | undefined> {
+    for (const kandidat of CHROME_KANDIDATEN) {
+        if (!kandidat) continue;
+        try {
+            await access(kandidat, constants.X_OK);
+            return kandidat;
+        } catch {
+            continue;
+        }
+    }
+    return undefined;
+}
+
 function pdfHtmlDokument(inhaltHtml: string): string {
     return `<!DOCTYPE html>
 <html lang="de">
@@ -80,9 +103,17 @@ function pdfHtmlDokument(inhaltHtml: string): string {
 }
 
 export async function dossierPdfErzeugen(inhaltHtml: string): Promise<Uint8Array> {
+    const executablePath = await chromePfadErmitteln();
+
     const browser = await puppeteer.launch({
         headless: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        executablePath,
+        args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+        ],
     });
 
     try {
