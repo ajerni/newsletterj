@@ -44,7 +44,7 @@ async function dossierListeAnsicht(
             : `<strong>Dossier #${d.id}</strong>`;
         return `
             <tr>
-                <td>${nameZelle}</td>
+                <td class="col-name">${nameZelle}</td>
                 <td><span class="badge badge-${statusKlasse(String(d.status))}">${esc(String(d.status))}</span></td>
                 <td>${esc(d.zeitraum_label)}</td>
                 <td>${stats?.artikel ?? "—"}</td>
@@ -103,10 +103,10 @@ async function dossierListeAnsicht(
 
         ${hinweis ? `<div class="flash flash-${hinweis.typ}" role="status">${esc(hinweis.text)}</div>` : ""}
 
-        <table>
+        <table class="dossier-liste-table">
             <thead>
                 <tr>
-                    <th>Name</th>
+                    <th class="col-name">Name</th>
                     <th>Status</th>
                     <th>Zeitraum</th>
                     <th>Artikel</th>

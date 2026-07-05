@@ -1611,6 +1611,17 @@ a.btn {
     background: var(--color-accent);
 }
 
+.dossier-liste-table .col-name {
+    min-width: 9.5rem;
+    width: 12%;
+    white-space: nowrap;
+}
+
+.dossier-liste-table td.actions {
+    width: 1%;
+    white-space: nowrap;
+}
+
 .dossier-table-quellen td:last-child {
     word-break: break-all;
     max-width: 280px;
