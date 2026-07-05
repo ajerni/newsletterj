@@ -60,7 +60,7 @@ chatRoutes.get("/", async (c) => {
                 <h2>Schulmonitor fragen</h2>
             </div>
             <p class="muted section-intro">
-                Stellen Sie eine Frage — der Assistent durchsucht den Artikelbestand und antwortet mit belegten Quellenangaben [1], [2], …
+                Stellen Sie eine Frage.
             </p>
       
             <div id="chat-loading" class="htmx-indicator chat-loading">
