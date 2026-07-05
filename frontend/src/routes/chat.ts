@@ -62,15 +62,7 @@ chatRoutes.get("/", async (c) => {
             <p class="muted section-intro">
                 Stellen Sie eine Frage — der Assistent durchsucht den Artikelbestand und antwortet mit belegten Quellenangaben [1], [2], …
             </p>
-            <div id="chat-messages" class="chat-messages">
-                <div class="chat-bubble chat-assistant chat-welcome">
-                    <div class="chat-label">Schulmonitor</div>
-                    <div class="chat-text">
-                        <p>Fragen Sie z.&nbsp;B.: <em>«Was passierte in Winterthur rund um Schulleitungswechsel?»</em> oder <em>«Welche Berichte gibt es zu Gewalt an Schulen?»</em></p>
-                        <p class="muted">Antworten basieren nur auf Artikeln in der Datenbank. Jede Aussage ist mit Quellen verlinkt.</p>
-                    </div>
-                </div>
-            </div>
+      
             <div id="chat-loading" class="htmx-indicator chat-loading">
                 <div class="chat-bubble chat-assistant">
                     <div class="chat-label">Schulmonitor</div>

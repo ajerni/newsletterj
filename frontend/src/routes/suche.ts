@@ -64,7 +64,7 @@ sucheRoutes.get("/", async (c) => {
         <div class="header-row">
             <h2>Semantische Suche</h2>
         </div>
-        <p class="muted section-intro">Suchen nach Bedeutung oder Stichwort — Embeddings für Fragen, Stichwort-Fallback für kurze Begriffe.</p>
+        <p class="muted section-intro">Suchen nach Bedeutung oder Stichwort</p>
         <form class="filter-bar suche-form" hx-get="/api/suche" hx-target="#content" hx-trigger="submit">
             <input type="search" name="q" placeholder="z.B. «Schulleitung Rücktritt nach Mobbing-Vorwürfen in Uster» oder «Gewalt»" value="${esc(query)}" class="filter-suche suche-input" autofocus>
             <button type="submit" class="btn btn-primary">Suchen</button>
