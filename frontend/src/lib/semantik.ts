@@ -3,8 +3,8 @@ import sql from "../db.js";
 const EMBEDDING_DIMENSIONS = 1536;
 const STANDARD_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 
-const SEMANTISCH_SCHWELLWERT_LANG = 0.55;
-const SEMANTISCH_SCHWELLWERT_KURZ = 0.4;
+const SEMANTISCH_SCHWELLWERT_LANG = 0.35;
+const SEMANTISCH_SCHWELLWERT_KURZ = 0.2;
 
 function vektorLiteral(embedding: number[]): string {
     return `[${embedding.join(",")}]`;

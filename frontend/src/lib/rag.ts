@@ -1,7 +1,77 @@
 import sql from "../db.js";
-import { hybrideArtikelSuche, hatEinbettungen } from "./semantik.js";
+import {
+    hybrideArtikelSuche,
+    hatEinbettungen,
+    semantischeArtikelSuche,
+    stichwortArtikelSuche,
+    type SemantischerTreffer,
+} from "./semantik.js";
 
 const RAG_KONTEXT_LIMIT = 8;
+const RAG_SEMANTIK_SCHWELLWERT = 0.35;
+
+const STOPWOERTER = new Set([
+    "alle", "als", "also", "an", "auch", "auf", "aus", "bei", "bis", "das", "dass",
+    "dem", "den", "der", "des", "die", "ein", "eine", "einem", "einen", "einer",
+    "eines", "er", "es", "für", "gab", "gibt", "haben", "hat", "hier", "ich",
+    "ihr", "ihre", "im", "in", "ist", "kann", "mehr", "mit", "nach", "nicht",
+    "noch", "nur", "ob", "oder", "rund", "schon", "sich", "sie", "sind", "über",
+    "um", "und", "uns", "vom", "von", "vor", "war", "was", "weg", "weil", "welche",
+    "welcher", "welches", "wenn", "wer", "wie", "wird", "wo", "wohl", "zum", "zur",
+    "zwar", "zwischen", "frage", "bitte", "gibt", "gab", "sein", "seine", "dieser",
+    "diese", "dieses", "damit", "dann", "dort", "hier", "heute", "gestern",
+]);
+
+/** Significant terms from a natural-language question for keyword retrieval. */
+function ragSuchbegriffe(frage: string): string[] {
+    const woerter = frage
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}_-]/gu, " ")
+        .split(/\s+/)
+        .map((w) => w.trim())
+        .filter((w) => w.length >= 4 && !STOPWOERTER.has(w));
+
+    return [...new Set(woerter)].sort((a, b) => b.length - a.length).slice(0, 5);
+}
+
+async function ragArtikelRetrieval(frage: string): Promise<SemantischerTreffer[]> {
+    const einbettungenVorhanden = await hatEinbettungen();
+    const ergebnis: SemantischerTreffer[] = [];
+    const gesehen = new Set<number>();
+
+    const hinzufuegen = (liste: SemantischerTreffer[]) => {
+        for (const t of liste) {
+            if (!gesehen.has(t.id)) {
+                gesehen.add(t.id);
+                ergebnis.push(t);
+            }
+        }
+    };
+
+    // 1. Semantic with lower threshold (RAG tolerates weaker matches)
+    if (einbettungenVorhanden) {
+        try {
+            hinzufuegen(await semantischeArtikelSuche(frage, RAG_KONTEXT_LIMIT, RAG_SEMANTIK_SCHWELLWERT));
+        } catch {
+            // fall through
+        }
+    }
+
+    // 2. Standard hybrid search (semantic + keyword for short queries)
+    if (ergebnis.length < RAG_KONTEXT_LIMIT) {
+        hinzufuegen(await hybrideArtikelSuche(frage, RAG_KONTEXT_LIMIT, einbettungenVorhanden));
+    }
+
+    // 3. Keyword on extracted terms — fixes long questions where full-string ILIKE matches nothing
+    if (ergebnis.length < RAG_KONTEXT_LIMIT) {
+        for (const begriff of ragSuchbegriffe(frage)) {
+            if (ergebnis.length >= RAG_KONTEXT_LIMIT) break;
+            hinzufuegen(await stichwortArtikelSuche(begriff, 10));
+        }
+    }
+
+    return ergebnis.slice(0, RAG_KONTEXT_LIMIT);
+}
 
 export interface RagQuelle {
     nr: number;
@@ -30,14 +100,13 @@ Regeln:
 - Verwende die Zitatform [1] oder [1][2] inline im Text, keine anderen Fussnotenformate.`;
 
 export async function ragKontextLaden(frage: string): Promise<RagQuelle[]> {
-    const einbettungenVorhanden = await hatEinbettungen();
-    const treffer = await hybrideArtikelSuche(frage, RAG_KONTEXT_LIMIT, einbettungenVorhanden);
+    const treffer = await ragArtikelRetrieval(frage);
 
     if (treffer.length === 0) return [];
 
     const ids = treffer.map((t) => t.id);
     const artikel = await sql`
-        SELECT a.id, a.titel, a.url, a.zusammenfassung, a.quellen_name
+        SELECT a.id, a.titel, a.url, a.zusammenfassung, a.ausschnitt, a.quellen_name
         FROM newsletterj_artikel a
         WHERE a.id = ANY(${ids})
     ` as Array<{
@@ -45,25 +114,28 @@ export async function ragKontextLaden(frage: string): Promise<RagQuelle[]> {
         titel: string | null;
         url: string;
         zusammenfassung: string | null;
+        ausschnitt: string | null;
         quellen_name: string | null;
     }>;
 
     const nachId = new Map(artikel.map((a) => [a.id, a]));
 
-    return treffer
-        .map((t, index) => {
-            const a = nachId.get(t.id);
-            if (!a?.zusammenfassung?.trim()) return null;
-            return {
-                nr: index + 1,
-                id: a.id,
-                titel: a.titel?.trim() || "Ohne Titel",
-                url: a.url,
-                zusammenfassung: a.zusammenfassung.trim(),
-                quellen_name: a.quellen_name,
-            };
-        })
-        .filter((q): q is RagQuelle => q !== null);
+    const quellen: RagQuelle[] = [];
+    for (const t of treffer) {
+        const a = nachId.get(t.id);
+        if (!a) continue;
+        const text = (a.zusammenfassung?.trim() || a.ausschnitt?.trim() || "").slice(0, 2000);
+        if (!text) continue;
+        quellen.push({
+            nr: quellen.length + 1,
+            id: a.id,
+            titel: a.titel?.trim() || "Ohne Titel",
+            url: a.url,
+            zusammenfassung: text,
+            quellen_name: a.quellen_name,
+        });
+    }
+    return quellen;
 }
 
 function quellenBlock(quellen: RagQuelle[]): string {
