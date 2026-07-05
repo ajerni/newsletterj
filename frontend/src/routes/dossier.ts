@@ -3,6 +3,7 @@ import sql from "../db.js";
 import { esc } from "../html.js";
 import { zeitraumOptionen, datumFormatieren } from "../ui.js";
 import { dossierErstellen } from "../lib/dossier.js";
+import { dossierPdfErzeugen, dossierPdfDateiname } from "../lib/dossier-pdf.js";
 
 export const dossierRoutes = new Hono();
 
@@ -51,7 +52,8 @@ async function dossierListeAnsicht(
                 <td class="muted">${d.abgeschlossen_am ? datumFormatieren(d.abgeschlossen_am, true) : "—"}</td>
                 <td class="actions">
                     ${d.status === "abgeschlossen"
-                        ? `<button class="btn btn-sm" hx-get="/api/dossier/${d.id}" hx-target="#content">Ansehen</button>`
+                        ? `<button class="btn btn-sm" hx-get="/api/dossier/${d.id}" hx-target="#content">Ansehen</button>
+                           <a href="/api/dossier/${d.id}/pdf" class="btn btn-sm">PDF</a>`
                         : d.fehlermeldung
                             ? `<span class="error" title="${esc(String(d.fehlermeldung))}">Fehler</span>`
                             : ""}
@@ -166,6 +168,39 @@ dossierRoutes.post("/run", async (c) => {
             await dossierListeAnsicht(1, { typ: "error", text: `Dossier-Erstellung fehlgeschlagen: ${meldung}` }),
             500
         );
+    }
+});
+
+dossierRoutes.get("/:id/pdf", async (c) => {
+    const id = Number(c.req.param("id"));
+    if (!id) return c.text("Ungültige ID", 400);
+
+    const [dossier] = await sql`
+        SELECT id, zeitraum_label, inhalt_html, status
+        FROM newsletterj_dossiers
+        WHERE id = ${id}
+    `;
+
+    if (!dossier) return c.text("Dossier nicht gefunden", 404);
+    if (dossier.status !== "abgeschlossen" || !dossier.inhalt_html) {
+        return c.text("Dossier ist nicht verfügbar", 404);
+    }
+
+    try {
+        const pdf = await dossierPdfErzeugen(dossier.inhalt_html);
+        const dateiname = dossierPdfDateiname(id, dossier.zeitraum_label);
+
+        return new Response(Buffer.from(pdf), {
+            status: 200,
+            headers: {
+                "Content-Type": "application/pdf",
+                "Content-Disposition": `attachment; filename="${dateiname}"`,
+            },
+        });
+    } catch (fehler) {
+        const meldung = fehler instanceof Error ? fehler.message : "Unbekannter Fehler";
+        console.error(`PDF für Dossier ${id} fehlgeschlagen:`, meldung);
+        return c.text(`PDF-Erstellung fehlgeschlagen: ${meldung}`, 500);
     }
 });
 

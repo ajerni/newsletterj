@@ -418,6 +418,10 @@ td.actions {
     font-size: 13px;
 }
 
+a.btn {
+    text-decoration: none;
+}
+
 .btn-primary {
     background: var(--color-accent);
     color: #fff;
