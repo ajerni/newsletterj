@@ -62,7 +62,7 @@ chatRoutes.get("/", async (c) => {
             <p class="muted section-intro">
                 Stellen Sie eine Frage.
             </p>
-      
+            <div id="chat-messages" class="chat-messages"></div>
             <div id="chat-loading" class="htmx-indicator chat-loading">
                 <div class="chat-bubble chat-assistant">
                     <div class="chat-label">Schulmonitor</div>

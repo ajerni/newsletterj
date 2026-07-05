@@ -72,6 +72,6 @@ sucheRoutes.get("/", async (c) => {
         ${fehlerHtml}
         ${hinweisHtml}
         <div class="artikel-liste">${trefferHtml}</div>
-        ${!query ? `Geben Sie eine Frage oder einen Begriff ein.` : ""}
+        ${!query ? `` : ""}
     `);
 });
