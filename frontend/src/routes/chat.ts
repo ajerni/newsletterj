@@ -55,31 +55,40 @@ function turnHtml(frage: string, antwort: string, quellen: RagQuelle[], fehler?:
 
 chatRoutes.get("/", async (c) => {
     return c.html(`
-        <div class="chat-shell">
-            <div class="header-row">
-                <h2>Schulmonitor fragen</h2>
+        <div class="chat-shell" id="chat-shell">
+            <div class="chat-header">
+                <div class="chat-header-text">
+                    <h2>Schulmonitor fragen</h2>
+                    <p class="muted">Stellen Sie eine Frage — Antworten mit Quellenangaben [1], [2], …</p>
+                </div>
+                <button type="button" class="btn btn-sm chat-clear-btn"
+                    hx-get="/api/chat" hx-target="#content"
+                    title="Gespräch zurücksetzen">Löschen</button>
             </div>
-            <p class="muted section-intro">
-                Stellen Sie eine Frage.
-            </p>
-            <div id="chat-messages" class="chat-messages"></div>
-            <div id="chat-loading" class="htmx-indicator chat-loading">
-                <div class="chat-bubble chat-assistant">
-                    <div class="chat-label">Schulmonitor</div>
-                    <div class="chat-text muted">Recherchiere in der Datenbank…</div>
+            <div class="chat-panel">
+                <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+                <div id="chat-loading" class="htmx-indicator chat-loading">
+                    <div class="chat-bubble chat-assistant chat-loading-bubble">
+                        <div class="chat-label">Schulmonitor</div>
+                        <div class="chat-text muted">Recherchiere in der Datenbank…</div>
+                    </div>
+                </div>
+                <div class="chat-composer">
+                    <form class="chat-form"
+                        hx-post="/api/chat/ask"
+                        hx-target="#chat-messages"
+                        hx-swap="beforeend"
+                        hx-indicator="#chat-loading"
+                        hx-on::after-request="if(event.detail.successful){ this.reset(); const m=document.getElementById('chat-messages'); if(m) m.scrollTop=m.scrollHeight; }">
+                        <textarea id="chat-input" name="frage" rows="3" required
+                            placeholder="Ihre Frage an den Schulmonitor…"
+                            class="chat-input"></textarea>
+                        <div class="chat-actions">
+                            <button type="submit" class="btn btn-primary">Senden</button>
+                        </div>
+                    </form>
                 </div>
             </div>
-            <form class="chat-form"
-                hx-post="/api/chat/ask"
-                hx-target="#chat-messages"
-                hx-swap="beforeend"
-                hx-indicator="#chat-loading"
-                hx-on::after-request="if(event.detail.successful){ this.reset(); const m=document.getElementById('chat-messages'); if(m) m.scrollTop=m.scrollHeight; }">
-                <textarea id="chat-input" name="frage" rows="3" required
-                    placeholder="Ihre Frage an den Schulmonitor…"
-                    class="chat-input"></textarea>
-                <button type="submit" class="btn btn-primary">Senden</button>
-            </form>
         </div>
     `);
 });
