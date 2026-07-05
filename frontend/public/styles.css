@@ -123,8 +123,8 @@ a {
     padding: 0 24px;
 }
 
-/* Header */
-header {
+/* Header — scoped to site header only (avoid sticky on in-content <header> e.g. dossier) */
+body > header {
     background: var(--color-surface);
     border-bottom: 1px solid var(--color-border);
     padding: 12px 0 10px;
@@ -134,7 +134,7 @@ header {
     transition: background-color 0.2s, border-color 0.2s;
 }
 
-header .header-inner {
+body > header .header-inner {
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -148,7 +148,7 @@ header .header-inner {
     gap: 16px;
 }
 
-header h1 {
+body > header h1 {
     font-size: 18px;
     font-weight: 600;
     color: var(--color-text-strong);
@@ -1556,6 +1556,8 @@ td.actions {
 }
 
 .dossier-report-header {
+    position: static;
+    z-index: auto;
     margin-bottom: 28px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--color-border);
@@ -1613,7 +1615,7 @@ td.actions {
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }
-    header { padding: 10px 0 8px; }
+    body > header { padding: 10px 0 8px; }
     .header-nav { margin: 0 -16px; padding: 0 16px 2px; }
     .nav-btn { padding: 7px 10px; font-size: 12px; }
     .inline-form { flex-direction: column; align-items: stretch; }

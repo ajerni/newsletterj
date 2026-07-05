@@ -45,12 +45,18 @@ async function dossierListeAnsicht(
                 <td>${stats?.artikel ?? "—"}</td>
                 <td class="muted">${datumFormatieren(d.gestartet_am, true)}</td>
                 <td class="muted">${d.abgeschlossen_am ? datumFormatieren(d.abgeschlossen_am, true) : "—"}</td>
-                <td>
+                <td class="actions">
                     ${d.status === "abgeschlossen"
                         ? `<button class="btn btn-sm" hx-get="/api/dossier/${d.id}" hx-target="#content">Ansehen</button>`
                         : d.fehlermeldung
                             ? `<span class="error" title="${esc(String(d.fehlermeldung))}">Fehler</span>`
-                            : "—"}
+                            : ""}
+                    <button class="btn btn-sm btn-danger"
+                        hx-delete="/api/dossier/${d.id}?seite=${seite}"
+                        hx-target="#content"
+                        hx-confirm="Dossier #${d.id} (${esc(d.zeitraum_label)}) löschen?">
+                        Löschen
+                    </button>
                 </td>
             </tr>
         `;
@@ -185,4 +191,36 @@ dossierRoutes.get("/:id", async (c) => {
         </div>
         ${dossier.inhalt_html}
     `);
+});
+
+dossierRoutes.delete("/:id", async (c) => {
+    const id = Number(c.req.param("id"));
+    if (!id) return c.html("<p class='error'>Ungültige ID</p>", 400);
+
+    const seite = Math.max(1, Number(c.req.query("seite")) || 1);
+
+    const geloescht = await sql`
+        DELETE FROM newsletterj_dossiers WHERE id = ${id} RETURNING id
+    `;
+
+    if (geloescht.length === 0) {
+        return c.html(
+            await dossierListeAnsicht(seite, { typ: "error", text: `Dossier #${id} nicht gefunden.` }),
+            404
+        );
+    }
+
+    const [{ count: anzahl }] = await sql`
+        SELECT COUNT(*)::int AS count FROM newsletterj_dossiers
+    ` as unknown as [{ count: number }];
+
+    const gesamtSeiten = Math.max(1, Math.ceil(anzahl / SEITEN_GROESSE));
+    const zielSeite = Math.min(seite, gesamtSeiten);
+
+    return c.html(
+        await dossierListeAnsicht(zielSeite, {
+            typ: "success",
+            text: `Dossier #${id} wurde gelöscht.`,
+        })
+    );
 });
