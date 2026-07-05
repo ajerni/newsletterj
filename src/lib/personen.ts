@@ -57,9 +57,11 @@ async function kiAbgleichAnfrage(prompt: string): Promise<number | null> {
 interface PersonenAufloesungErgebnis {
     personen_erstellt: number;
     personen_aktualisiert: number;
+    /** Normalized person name → resolved DB id for this article. */
+    person_ids: Map<string, number>;
 }
 
-function nameNormalisieren(name: string): string {
+export function nameNormalisieren(name: string): string {
     return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
@@ -69,6 +71,7 @@ export async function personenAufloesen(
 ): Promise<PersonenAufloesungErgebnis> {
     let erstellt = 0;
     let aktualisiert = 0;
+    const personIds = new Map<string, number>();
 
     for (const person of personen) {
         const gemeindeId = person.gemeinde
@@ -96,6 +99,7 @@ export async function personenAufloesen(
                     funktion_bei_erwaehnung: person.funktion,
                     kontext: null,
                 });
+                personIds.set(nameNormalisieren(person.name), uebereinstimmung);
                 aktualisiert++;
                 continue;
             }
@@ -111,10 +115,11 @@ export async function personenAufloesen(
             funktion_bei_erwaehnung: person.funktion,
             kontext: null,
         });
+        personIds.set(nameNormalisieren(person.name), neuePersonId);
         erstellt++;
     }
 
-    return { personen_erstellt: erstellt, personen_aktualisiert: aktualisiert };
+    return { personen_erstellt: erstellt, personen_aktualisiert: aktualisiert, person_ids: personIds };
 }
 
 export async function gemeindeIdAufloesen(name: string): Promise<number | null> {

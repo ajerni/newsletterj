@@ -6,7 +6,7 @@ import { artikelSpeichern, organisationFindenOderErstellen, orgErwaehnungErstell
 import { newsletterHtmlErstellen, newsletterSenden } from "../lib/email.js";
 import { artikelEinbettungVerarbeiten } from "../lib/embeddings.js";
 import { fallThreadingVerarbeiten } from "../lib/faelle.js";
-import { komentionArtikelErzeugen } from "../lib/netzwerk.js";
+import { komentionArtikelErzeugen, expliziteRelationenErzeugen } from "../lib/netzwerk.js";
 import type { FehlgeschlagenerArtikel } from "../lib/email.js";
 import type { SuchErgebnis, ArtikelExtraktion } from "../lib/typen.js";
 
@@ -51,6 +51,17 @@ export const monitorTask = task({
                     const personenErgebnis = await personenAufloesen(extraktion.personen, artikelId);
                     personenErstellt += personenErgebnis.personen_erstellt;
                     personenAktualisiert += personenErgebnis.personen_aktualisiert;
+
+                    try {
+                        await expliziteRelationenErzeugen(
+                            artikelId,
+                            extraktion.beziehungen,
+                            personenErgebnis.person_ids
+                        );
+                    } catch (netzwerkFehler) {
+                        const meldung = netzwerkFehler instanceof Error ? netzwerkFehler.message : "Unbekannter Fehler";
+                        console.error(`Explizite Beziehungen für Artikel ${ergebnis.url}: ${meldung}`);
+                    }
 
                     try {
                         await komentionArtikelErzeugen(artikelId);

@@ -1761,6 +1761,25 @@ a.btn {
     color: var(--color-text-muted);
 }
 
+.relation-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.relation-explicit {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.relation-komention {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }

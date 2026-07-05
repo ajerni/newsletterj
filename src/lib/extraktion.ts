@@ -1,6 +1,8 @@
 import type { ArtikelExtraktion } from "./typen.js";
 import { KATEGORIEN, RELEVANZ_STUFEN, ORG_TYPEN } from "../config/kategorien.js";
 import type { Kategorie, Relevanz, OrgTyp } from "../config/kategorien.js";
+import { RELATION_TYPEN } from "../config/relationen.js";
+import type { RelationTyp } from "../config/relationen.js";
 import { llmJsonParsen, llmInhaltExtrahieren } from "./json.js";
 import type { OpenRouterChatAntwort } from "./json.js";
 
@@ -20,7 +22,8 @@ Analysiere den folgenden Medienbeitrag und extrahiere strukturierte Informatione
   "kontext_bezug": "Bezug zu früheren Ereignissen oder null",
   "personen": [{"name": "...", "funktion": "...", "organisation": "...", "gemeinde": "..."}],
   "organisationen": [{"name": "...", "typ": "...", "gemeinde": "..."}],
-  "ereignisse": [{"typ": "...", "titel": "...", "beschreibung": "...", "ereignis_datum": "ISO oder null", "relevanz": "hoch|mittel|tief"}]
+  "ereignisse": [{"typ": "...", "titel": "...", "beschreibung": "...", "ereignis_datum": "ISO oder null", "relevanz": "hoch|mittel|tief"}],
+  "beziehungen": [{"von": "Personenname", "zu": "Personenname", "relation": "relationstyp"}]
 }
 
 Verfügbare Kategorien: ${KATEGORIEN.join(", ")}
@@ -28,6 +31,13 @@ Verfügbare Kategorien: ${KATEGORIEN.join(", ")}
 Verfügbare Organisationstypen: volksschulamt, bildungsdirektion, bildungsrat, fachstelle_schulbeurteilung, schulpflege, schulpraesidium, schulleitung, schulverwaltung, kreisschulbehoerde, zweckverband, primarschule, sekundarschule, sonderschule, tagesschule, berufsschule, kantonsschule, gemeinde
 
 Wichtig: Erfasse unter "personen" ausschliesslich Personen, die im Beitrag mit ihrem echten Namen (Vor- und/oder Nachname) genannt werden. Anonyme oder unbenannte Personen (z.B. "nicht namentlich genannt", "unbekannt", "ein Lehrer", "die Schulleiterin") NICHT aufführen — lasse das Array in diesem Fall leer.
+
+Explizite Beziehungen zwischen Personen (Feld "beziehungen"):
+- Nur erfassen, wenn die Beziehung im Text ausdrücklich genannt oder klar erkennbar ist — nicht aus blosser Co-Erwähnung im selben Artikel ableiten.
+- "von" und "zu" müssen exakt Namen aus "personen" sein.
+- Verfügbare relation-Werte: ${RELATION_TYPEN.join(", ")}
+- Bedeutungen: konflikt_mit (offener Konflikt/Streit), vorgesetzt_von (von ist unterstellt zu), untergeben (von führt/hat zu unterstellt), nachfolger_von (von trat die Rolle von zu an), vorgaenger_von (von hatte die Rolle vor zu), kollege_von (gleiche Ebene/Gremium), kritisiert (von kritisiert zu), unterstuetzt (von unterstützt/backt zu), vertritt (von vertritt/handelt für zu), beschwerde_gegen (von reichte Beschwerde gegen zu ein), verfahren_gegen (Verfahren/Anklage gegen zu, initiiert durch/bezogen auf von).
+- Wenn keine explizite Beziehung erkennbar ist: leeres Array [].
 
 Der Feld "titel" soll den konkret analysierten Beitrag beschreiben. Bei Sammelseiten oder wenn der Suchtitel nicht zum Inhalt passt, formuliere einen eigenen, passenden Titel aus dem Inhalt — übernimm den Suchtitel nicht wörtlich, wenn er falsch oder irreführend ist.
 
@@ -88,6 +98,7 @@ Inhalt: ${ausschnitt}`;
 const KATEGORIEN_SET = new Set<string>(KATEGORIEN);
 const RELEVANZ_SET = new Set<string>(RELEVANZ_STUFEN);
 const ORG_TYPEN_SET = new Set<string>(ORG_TYPEN);
+const RELATION_TYPEN_SET = new Set<string>(RELATION_TYPEN);
 
 function textOderNull(wert: unknown): string | null {
     return typeof wert === "string" && wert.trim() !== "" ? wert : null;
@@ -103,6 +114,14 @@ function istEchterPersonenname(name: string): boolean {
     // Generic role descriptions instead of names (e.g. "ein Lehrer", "die Schulleiterin")
     if (/^(ein|eine|der|die|das|mehrere|einige)\s/i.test(bereinigt)) return false;
     return true;
+}
+
+function alsRelation(wert: unknown): RelationTyp | null {
+    return typeof wert === "string" && RELATION_TYPEN_SET.has(wert) ? (wert as RelationTyp) : null;
+}
+
+function nameNormalisieren(name: string): string {
+    return name.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 function alsRelevanz(wert: unknown): Relevanz {
@@ -159,6 +178,26 @@ function normalisiereExtraktion(roh: any, suchtitel = ""): ArtikelExtraktion {
               }))
         : [];
 
+    const personenNamen = new Set(personen.map((p: { name: string }) => nameNormalisieren(p.name)));
+
+    const beziehungen = Array.isArray(roh?.beziehungen)
+        ? roh.beziehungen
+              .filter((b: any) => {
+                  if (!b || typeof b.von !== "string" || typeof b.zu !== "string") return false;
+                  const relation = alsRelation(b.relation);
+                  if (!relation) return false;
+                  const von = nameNormalisieren(b.von);
+                  const zu = nameNormalisieren(b.zu);
+                  if (von === zu) return false;
+                  return personenNamen.has(von) && personenNamen.has(zu);
+              })
+              .map((b: any) => ({
+                  von: b.von.trim(),
+                  zu: b.zu.trim(),
+                  relation: alsRelation(b.relation)!,
+              }))
+        : [];
+
     return {
         titel: textOderNull(roh?.titel) ?? textOderNull(suchtitel) ?? "",
         zusammenfassung: textOderNull(roh?.zusammenfassung) ?? "",
@@ -172,5 +211,6 @@ function normalisiereExtraktion(roh: any, suchtitel = ""): ArtikelExtraktion {
         personen,
         organisationen,
         ereignisse,
+        beziehungen,
     };
 }

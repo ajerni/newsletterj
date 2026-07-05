@@ -34,6 +34,7 @@ export const einbettungenNachziehenTask = task({
                     personen: [],
                     organisationen: [],
                     ereignisse: [],
+                    beziehungen: [],
                 };
                 await artikelEinbettungVerarbeiten(a.id, extraktion, a.gemeinde_name);
                 verarbeitet++;

@@ -1,4 +1,5 @@
 import type { Kategorie, Relevanz, OrgTyp } from "../config/kategorien.js";
+import type { RelationTyp } from "../config/relationen.js";
 
 export interface SuchErgebnis {
     titel: string;
@@ -168,5 +169,10 @@ export interface ArtikelExtraktion {
         beschreibung: string;
         ereignis_datum: string | null;
         relevanz: Relevanz;
+    }>;
+    beziehungen: Array<{
+        von: string;
+        zu: string;
+        relation: RelationTyp;
     }>;
 }
