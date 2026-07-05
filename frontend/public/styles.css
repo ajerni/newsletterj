@@ -1780,6 +1780,17 @@ a.btn {
     color: #4b5563;
 }
 
+.person-netzwerk-table {
+    margin-bottom: 1.25rem;
+}
+
+.person-netzwerk-table .relation-direction {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.88rem;
+    color: var(--color-text-muted);
+}
+
 /* Responsive */
 @media (max-width: 640px) {
     .container { padding: 0 16px; }

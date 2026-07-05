@@ -1,6 +1,6 @@
 import sql from "../db.js";
 import { esc } from "../html.js";
-import { relationBadgeHtml } from "./relationen.js";
+import { relationBadgeHtml, relationRichtungText } from "./relationen.js";
 
 export type NetzwerkKantenFilter = "alle" | "explizit" | "komention";
 
@@ -304,5 +304,123 @@ export async function netzwerkHtml(tage: number): Promise<string> {
         ${zentralHtml}
         ${explizitHtml}
         ${komentionHtml}
+    `;
+}
+
+export interface PersonNetzwerkVerbindung {
+    nachbar_id: number;
+    nachbar_name: string;
+    nachbar_funktion: string | null;
+    relation: string;
+    von_id: number;
+    zu_id: number;
+    quellen: Array<{ artikel_id: number; titel: string | null }>;
+}
+
+/** All 1-hop edges for one person from newsletterj_beziehungen, grouped by neighbor + relation. */
+export async function personNetzwerk1HopLaden(
+    personId: number,
+    limit = 30
+): Promise<PersonNetzwerkVerbindung[]> {
+    const kanten = await sql`
+        SELECT
+            b.von_id,
+            b.zu_id,
+            b.relation,
+            b.quell_artikel_id,
+            CASE WHEN b.von_id = ${personId} THEN b.zu_id ELSE b.von_id END AS nachbar_id,
+            p.name AS nachbar_name,
+            p.aktuelle_funktion AS nachbar_funktion,
+            a.titel AS artikel_titel
+        FROM newsletterj_beziehungen b
+        JOIN newsletterj_personen p ON p.id = CASE WHEN b.von_id = ${personId} THEN b.zu_id ELSE b.von_id END
+        JOIN newsletterj_artikel a ON a.id = b.quell_artikel_id
+        WHERE b.von_typ = 'person'
+          AND b.zu_typ = 'person'
+          AND (b.von_id = ${personId} OR b.zu_id = ${personId})
+        ORDER BY
+            CASE WHEN b.relation = 'erwaehnt_zusammen' THEN 1 ELSE 0 END,
+            a.gesucht_am DESC
+    `;
+
+    const gruppen = new Map<string, PersonNetzwerkVerbindung>();
+
+    for (const k of kanten) {
+        const schluessel = `${k.nachbar_id}:${k.relation}:${k.von_id}:${k.zu_id}`;
+        let eintrag = gruppen.get(schluessel);
+        if (!eintrag) {
+            eintrag = {
+                nachbar_id: k.nachbar_id,
+                nachbar_name: k.nachbar_name,
+                nachbar_funktion: k.nachbar_funktion,
+                relation: k.relation,
+                von_id: k.von_id,
+                zu_id: k.zu_id,
+                quellen: [],
+            };
+            gruppen.set(schluessel, eintrag);
+        }
+        if (!eintrag.quellen.some((q) => q.artikel_id === k.quell_artikel_id)) {
+            eintrag.quellen.push({
+                artikel_id: k.quell_artikel_id,
+                titel: k.artikel_titel,
+            });
+        }
+    }
+
+    return [...gruppen.values()]
+        .sort((a, b) => {
+            const aExplizit = a.relation !== "erwaehnt_zusammen" ? 0 : 1;
+            const bExplizit = b.relation !== "erwaehnt_zusammen" ? 0 : 1;
+            if (aExplizit !== bExplizit) return aExplizit - bExplizit;
+            return b.quellen.length - a.quellen.length;
+        })
+        .slice(0, limit);
+}
+
+export function personNetzwerk1HopHtml(
+    personId: number,
+    personName: string,
+    verbindungen: PersonNetzwerkVerbindung[]
+): string {
+    if (verbindungen.length === 0) {
+        return `<p class="muted">Keine direkten Beziehungen zu anderen Personen.</p>`;
+    }
+
+    const explizit = verbindungen.filter((v) => v.relation !== "erwaehnt_zusammen");
+    const komention = verbindungen.filter((v) => v.relation === "erwaehnt_zusammen");
+
+    const zeile = (v: PersonNetzwerkVerbindung) => {
+        const quellenLinks = v.quellen
+            .map((q) => `<a href="#" hx-get="/api/artikel/${q.artikel_id}" hx-target="#content">${esc(q.titel || `Artikel #${q.artikel_id}`)}</a>`)
+            .join(", ");
+
+        return `
+            <tr>
+                <td>
+                    <a href="#" hx-get="/api/personen/${v.nachbar_id}" hx-target="#content">${esc(v.nachbar_name)}</a>
+                    ${v.nachbar_funktion ? `<br><span class="muted">${esc(v.nachbar_funktion)}</span>` : ""}
+                </td>
+                <td>
+                    ${relationBadgeHtml(v.relation)}
+                    <span class="relation-direction">${esc(relationRichtungText(v.relation, personId, v.von_id, v.nachbar_name))}</span>
+                </td>
+                <td>${quellenLinks}${v.quellen.length > 1 ? ` <span class="muted">(${v.quellen.length})</span>` : ""}</td>
+            </tr>
+        `;
+    };
+
+    const tabelle = (titel: string, zeilen: PersonNetzwerkVerbindung[]) => zeilen.length === 0 ? "" : `
+        <h4>${esc(titel)}</h4>
+        <table class="person-netzwerk-table">
+            <thead><tr><th>Person</th><th>Beziehung</th><th>Quelle</th></tr></thead>
+            <tbody>${zeilen.map(zeile).join("")}</tbody>
+        </table>
+    `;
+
+    return `
+        <p class="muted">Direkte Verbindungen (1 Hop) von ${esc(personName)} — ${explizit.length} explizit, ${komention.length} Co-Mention.</p>
+        ${tabelle("Explizite Beziehungen", explizit)}
+        ${tabelle("Co-Mentions", komention)}
     `;
 }

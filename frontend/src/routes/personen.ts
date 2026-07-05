@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import sql from "../db.js";
 import { esc } from "../html.js";
 import { datumFormatieren, datumRelativ, kategorieBadge, seitenNavigation } from "../ui.js";
+import { personNetzwerk1HopHtml, personNetzwerk1HopLaden } from "../lib/netzwerk.js";
 
 export const personenRoutes = new Hono();
 
@@ -117,17 +118,8 @@ personenRoutes.get("/:id", async (c) => {
         ORDER BY pf.beginn DESC NULLS FIRST
     `;
 
-    // Personen, die in denselben Artikeln vorkommen (Netzwerk)
-    const netzwerk = await sql`
-        SELECT p2.id, p2.name, p2.aktuelle_funktion, COUNT(*)::int as gemeinsame_artikel
-        FROM newsletterj_erwaehnungen e1
-        JOIN newsletterj_erwaehnungen e2 ON e2.artikel_id = e1.artikel_id AND e2.person_id != e1.person_id
-        JOIN newsletterj_personen p2 ON p2.id = e2.person_id
-        WHERE e1.person_id = ${id}
-        GROUP BY p2.id, p2.name, p2.aktuelle_funktion
-        ORDER BY gemeinsame_artikel DESC
-        LIMIT 10
-    `;
+    const netzwerkVerbindungen = await personNetzwerk1HopLaden(id);
+    const netzwerkHtml = personNetzwerk1HopHtml(id, person.name, netzwerkVerbindungen);
 
     const erwaehnungenHtml = erwaehnungen.map((e) => `
         <li>
@@ -141,12 +133,6 @@ personenRoutes.get("/:id", async (c) => {
 
     const funktionenHtml = funktionen.map((f) => `
         <li>${esc(f.funktion)} ${f.organisation ? `bei ${esc(f.organisation)}` : ""} ${f.gemeinde_name ? `(${esc(f.gemeinde_name)})` : ""}</li>
-    `).join("");
-
-    const netzwerkHtml = netzwerk.map((n) => `
-        <li><a href="#" hx-get="/api/personen/${n.id}" hx-target="#content">${esc(n.name)}</a>
-        <span class="muted">${esc(n.aktuelle_funktion || "")}</span>
-        <strong>${n.gemeinsame_artikel} gemeinsam</strong></li>
     `).join("");
 
     return c.html(`
@@ -163,8 +149,10 @@ personenRoutes.get("/:id", async (c) => {
 
         <div class="section-row">
             ${funktionen.length ? `<div class="section-half"><h3>Funktionshistorie</h3><ul class="simple-list">${funktionenHtml}</ul></div>` : ""}
-            ${netzwerk.length ? `<div class="section-half"><h3>Netzwerk (gemeinsame Artikel)</h3><ul class="simple-list">${netzwerkHtml}</ul></div>` : ""}
         </div>
+
+        <h3>Netzwerk</h3>
+        ${netzwerkHtml}
 
         <h3>Erwähnungen (${erwaehnungen.length})</h3>
         <ul class="simple-list">${erwaehnungenHtml || '<li class="muted">Keine Erwähnungen</li>'}</ul>

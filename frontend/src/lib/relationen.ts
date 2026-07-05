@@ -27,3 +27,34 @@ export function relationBadgeHtml(relation: string): string {
     const klasse = istExpliziteRelation(relation) ? "relation-badge relation-explicit" : "relation-badge relation-komention";
     return `<span class="${klasse}">${label}</span>`;
 }
+
+const SYMMETRISCHE = new Set(["erwaehnt_zusammen", "konflikt_mit", "kollege_von"]);
+
+/** Short directional phrase from the center person's perspective (plain text, not HTML). */
+export function relationRichtungText(
+    relation: string,
+    centerPersonId: number,
+    vonId: number,
+    nachbarName: string
+): string {
+    if (SYMMETRISCHE.has(relation)) {
+        return relation === "erwaehnt_zusammen" ? `Co-Mention mit ${nachbarName}` : `${relationLabel(relation)} ${nachbarName}`;
+    }
+
+    const centerIstVon = vonId === centerPersonId;
+    const richtungen: Record<string, [string, string]> = {
+        vorgesetzt_von: [`Vorgesetzt von ${nachbarName}`, `${nachbarName} ist unterstellt`],
+        untergeben: [`Führt ${nachbarName}`, `Geführt von ${nachbarName}`],
+        nachfolger_von: [`Nachfolger von ${nachbarName}`, `${nachbarName} ist Nachfolger`],
+        vorgaenger_von: [`Vorgänger von ${nachbarName}`, `${nachbarName} war Vorgänger`],
+        kritisiert: [`Kritisiert ${nachbarName}`, `Kritisiert von ${nachbarName}`],
+        unterstuetzt: [`Unterstützt ${nachbarName}`, `Unterstützt von ${nachbarName}`],
+        vertritt: [`Vertritt ${nachbarName}`, `Vertreten durch ${nachbarName}`],
+        beschwerde_gegen: [`Beschwerde gegen ${nachbarName}`, `Beschwerde von ${nachbarName}`],
+        verfahren_gegen: [`Verfahren gegen ${nachbarName}`, `Verfahren durch ${nachbarName}`],
+    };
+
+    const paar = richtungen[relation];
+    if (!paar) return `${relationLabel(relation)} ${nachbarName}`;
+    return centerIstVon ? paar[0] : paar[1];
+}
