@@ -1,6 +1,7 @@
 import sql from "../db.js";
 import { esc } from "../html.js";
 import { kategorieLabel, datumFormatieren, relevanzBadge } from "../ui.js";
+import { netzwerkHtml } from "./netzwerk.js";
 
 export function zeitraumLabel(tage: number): string {
     switch (tage) {
@@ -445,6 +446,7 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
         gemeinden,
         schulen,
         personen,
+        netzwerk,
         risiken,
         quellen,
     ] = await Promise.all([
@@ -452,6 +454,7 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
         gemeindenHtml(tage),
         schulenHtml(tage),
         personenHtml(tage),
+        netzwerkHtml(tage),
         risikenTrendsHtml(tage),
         quellenHtml(tage),
     ]);
@@ -468,7 +471,7 @@ export async function dossierInhaltGenerieren(tage: number): Promise<{ html: str
             ${dossierAbschnitt(4, "Übersicht nach Gemeinden", gemeinden)}
             ${dossierAbschnitt(5, "Übersicht nach Schulen", schulen)}
             ${dossierAbschnitt(6, "Übersicht nach Personen", personen)}
-            ${dossierAbschnitt(7, "Netzwerk der beteiligten Personen und Organisationen", `<p class="muted">Beziehungsgraph folgt in einer späteren Version.</p>`)}
+            ${dossierAbschnitt(7, "Netzwerk der beteiligten Personen und Organisationen", netzwerk)}
             ${dossierAbschnitt(8, "Risiken und Trends", risiken)}
             ${dossierAbschnitt(10, "Vollständige Quellenliste", quellen)}
         </article>

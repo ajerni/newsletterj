@@ -6,6 +6,7 @@ import { artikelSpeichern, organisationFindenOderErstellen, orgErwaehnungErstell
 import { newsletterHtmlErstellen, newsletterSenden } from "../lib/email.js";
 import { artikelEinbettungVerarbeiten } from "../lib/embeddings.js";
 import { fallThreadingVerarbeiten } from "../lib/faelle.js";
+import { komentionArtikelErzeugen } from "../lib/netzwerk.js";
 import type { FehlgeschlagenerArtikel } from "../lib/email.js";
 import type { SuchErgebnis, ArtikelExtraktion } from "../lib/typen.js";
 
@@ -50,6 +51,13 @@ export const monitorTask = task({
                     const personenErgebnis = await personenAufloesen(extraktion.personen, artikelId);
                     personenErstellt += personenErgebnis.personen_erstellt;
                     personenAktualisiert += personenErgebnis.personen_aktualisiert;
+
+                    try {
+                        await komentionArtikelErzeugen(artikelId);
+                    } catch (netzwerkFehler) {
+                        const meldung = netzwerkFehler instanceof Error ? netzwerkFehler.message : "Unbekannter Fehler";
+                        console.error(`Co-Mention-Graph für Artikel ${ergebnis.url}: ${meldung}`);
+                    }
 
                     // Resolve organizations
                     for (const org of extraktion.organisationen) {
