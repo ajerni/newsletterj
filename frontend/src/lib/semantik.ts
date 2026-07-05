@@ -3,8 +3,19 @@ import sql from "../db.js";
 const EMBEDDING_DIMENSIONS = 1536;
 const STANDARD_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 
+const SEMANTISCH_SCHWELLWERT_LANG = 0.55;
+const SEMANTISCH_SCHWELLWERT_KURZ = 0.4;
+
 function vektorLiteral(embedding: number[]): string {
     return `[${embedding.join(",")}]`;
+}
+
+function queryWoerterAnzahl(query: string): number {
+    return query.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function semantikSchwellwert(query: string): number {
+    return queryWoerterAnzahl(query) <= 2 ? SEMANTISCH_SCHWELLWERT_KURZ : SEMANTISCH_SCHWELLWERT_LANG;
 }
 
 async function einbettungErzeugen(text: string): Promise<number[]> {
@@ -38,13 +49,14 @@ export interface SemantischerTreffer {
     kategorie: string | null;
     relevanz: string;
     gesucht_am: Date;
-    similarity: number;
+    similarity: number | null;
+    match_typ: "semantisch" | "stichwort";
 }
 
 export async function semantischeArtikelSuche(
     query: string,
     limit = 20,
-    minSimilarity = 0.55
+    minSimilarity = SEMANTISCH_SCHWELLWERT_LANG
 ): Promise<SemantischerTreffer[]> {
     const embedding = await einbettungErzeugen(query);
     const literal = vektorLiteral(embedding);
@@ -57,9 +69,92 @@ export async function semantischeArtikelSuche(
             ${minSimilarity}
         ) s
         LEFT JOIN newsletterj_gemeinden g ON g.id = s.gemeinde_id
-    ` as SemantischerTreffer[];
+    ` as Array<Omit<SemantischerTreffer, "match_typ">>;
 
-    return treffer;
+    return treffer.map((t) => ({ ...t, match_typ: "semantisch" as const }));
+}
+
+/** Keyword search — matches Artikel filter fields + Kategorie slug. */
+export async function stichwortArtikelSuche(query: string, limit = 20): Promise<SemantischerTreffer[]> {
+    const muster = `%${query}%`;
+    const kategorieSlug = query.trim().toLowerCase().replace(/\s+/g, "_");
+
+    const treffer = await sql`
+        SELECT a.id, a.titel, a.gemeinde_id, g.name as gemeinde_name,
+            a.kategorie, a.relevanz, a.gesucht_am
+        FROM newsletterj_artikel a
+        LEFT JOIN newsletterj_gemeinden g ON g.id = a.gemeinde_id
+        WHERE a.titel ILIKE ${muster}
+           OR a.zusammenfassung ILIKE ${muster}
+           OR a.ausschnitt ILIKE ${muster}
+           OR a.schule ILIKE ${muster}
+           OR a.kategorie = ${kategorieSlug}
+           OR ${kategorieSlug} = ANY(a.kategorien)
+        ORDER BY COALESCE(a.veroeffentlicht_am, a.gesucht_am) DESC
+        LIMIT ${limit}
+    ` as Array<{
+        id: number;
+        titel: string | null;
+        gemeinde_id: number | null;
+        gemeinde_name: string | null;
+        kategorie: string | null;
+        relevanz: string;
+        gesucht_am: Date;
+    }>;
+
+    return treffer.map((t) => ({
+        ...t,
+        similarity: null,
+        match_typ: "stichwort" as const,
+    }));
+}
+
+/**
+ * Semantic search with adaptive threshold; supplements with keyword matches
+ * when the query is short, semantic results are sparse, or vector search returns nothing.
+ */
+export async function hybrideArtikelSuche(
+    query: string,
+    limit = 20,
+    einbettungenVorhanden: boolean
+): Promise<SemantischerTreffer[]> {
+    const istKurz = queryWoerterAnzahl(query) <= 2;
+    const ergebnis: SemantischerTreffer[] = [];
+    const gesehen = new Set<number>();
+
+    if (einbettungenVorhanden) {
+        try {
+            const schwellwert = semantikSchwellwert(query);
+            const semantisch = await semantischeArtikelSuche(query, limit, schwellwert);
+            for (const t of semantisch) {
+                if (!gesehen.has(t.id)) {
+                    gesehen.add(t.id);
+                    ergebnis.push(t);
+                }
+            }
+        } catch {
+            // Embedding API failed — fall through to keyword search
+        }
+    }
+
+    const brauchtStichwort =
+        !einbettungenVorhanden ||
+        ergebnis.length === 0 ||
+        istKurz ||
+        ergebnis.length < limit;
+
+    if (brauchtStichwort && ergebnis.length < limit) {
+        const rest = limit - ergebnis.length;
+        const stichwort = await stichwortArtikelSuche(query, rest + 10);
+        for (const t of stichwort) {
+            if (!gesehen.has(t.id) && ergebnis.length < limit) {
+                gesehen.add(t.id);
+                ergebnis.push(t);
+            }
+        }
+    }
+
+    return ergebnis;
 }
 
 export async function hatEinbettungen(): Promise<boolean> {
